@@ -1,6 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication
-from typing_app import TypingPracticeApp
+from typingApp import TypingPracticeApp
 
 def main():
     app = QApplication(sys.argv)

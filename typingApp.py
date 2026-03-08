@@ -3,15 +3,15 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFont
 import time
 from statsWorker import StatsWorker
+from text_generator import generate_mixed_text
 
 class TypingPracticeApp(QWidget):
-    # Signal to update stats
     stats_updated = Signal(str, str, str)
     text_updated = Signal(str)
 
     def __init__(self):
         super().__init__()
-        self.sample_text = "The quick brown fox jumps over the lazy dog. This is a sample text for typing practice."
+        self.sample_text = generate_mixed_text(length=250)
         self.start_time = None
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_time)
@@ -30,12 +30,10 @@ class TypingPracticeApp(QWidget):
         self.setWindowTitle("Typing Practice App")
         self.setGeometry(100, 100, 800, 500)
 
-        # Main layout
         main_layout = QVBoxLayout()
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Sample text section
         sample_group = QGroupBox("Sample Text")
         sample_group.setStyleSheet("""
             QGroupBox {
@@ -59,7 +57,6 @@ class TypingPracticeApp(QWidget):
         sample_group.setLayout(sample_layout)
         main_layout.addWidget(sample_group)
 
-        # Input section
         input_group = QGroupBox("Your Typing")
         input_group.setStyleSheet("""
             QGroupBox {
@@ -95,7 +92,6 @@ class TypingPracticeApp(QWidget):
         input_group.setLayout(input_layout)
         main_layout.addWidget(input_group)
 
-        # Stats and controls section
         control_group = QGroupBox("Statistics And Controls")
         control_group.setStyleSheet("""
             QGroupBox {
@@ -112,7 +108,6 @@ class TypingPracticeApp(QWidget):
         """)
         control_layout = QVBoxLayout()
 
-        # Stats display
         self.stats_label = QLabel("WPM: 0 | Accuracy: 0% | Time: 0s")
         self.stats_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.stats_label.setStyleSheet("""
@@ -126,7 +121,6 @@ class TypingPracticeApp(QWidget):
         """)
         control_layout.addWidget(self.stats_label)
 
-        # Buttons
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
 
@@ -172,7 +166,28 @@ class TypingPracticeApp(QWidget):
         self.reset_button.clicked.connect(self.reset_practice)
         button_layout.addWidget(self.reset_button)
 
-        button_layout.addStretch()  # Push buttons to the left
+        self.new_text_button = QPushButton("New Text")
+        self.new_text_button.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.new_text_button.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #0b7dda;
+            }
+            QPushButton:pressed {
+                background-color: #0056b3;
+            }
+        """)
+        self.new_text_button.clicked.connect(self.load_new_sample_text)
+        button_layout.addWidget(self.new_text_button)
+
+        button_layout.addStretch()
         control_layout.addLayout(button_layout)
 
         control_group.setLayout(control_layout)
@@ -183,7 +198,7 @@ class TypingPracticeApp(QWidget):
     def start_practice(self):
         if not self.start_time:
             self.start_time = time.time()
-            self.timer.start(1000)  # Update every second
+            self.timer.start(1000)
             self.input_edit.setFocus()
 
     def reset_practice(self):
@@ -195,6 +210,11 @@ class TypingPracticeApp(QWidget):
         self.input_edit.clear()
         self.stats_updated.emit("0", "0%", "0s")
 
+    def load_new_sample_text(self):
+        self.sample_text = generate_mixed_text(length=250)
+        self.text_label.setText(self.sample_text)
+        self.reset_practice()
+
     def update_time(self):
         if self.start_time:
             self.elapsed_time = time.time() - self.start_time
@@ -202,7 +222,7 @@ class TypingPracticeApp(QWidget):
 
     def check_progress(self):
         typed_text = self.input_edit.toPlainText()
-        self.text_updated.emit(typed_text)  # Emit signal with current text
+        self.text_updated.emit(typed_text)
 
         if not self.start_time and typed_text:
             self.start_time = time.time()
@@ -223,6 +243,5 @@ class TypingPracticeApp(QWidget):
         self.stats_label.setText(f"WPM: {wpm} | Accuracy: {accuracy} | Time: {time_str}")
 
     def closeEvent(self, event):
-        # Stop the stats worker thread on close
         self.stats_worker.stop_worker()
         super().closeEvent(event)

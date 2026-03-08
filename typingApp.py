@@ -15,6 +15,9 @@ class TypingPracticeApp(QWidget):
         self.timer.timeout.connect(self.update_time)
         self.elapsed_time = 0
         self.is_done = False
+        self.total_typed_chars = 0
+        self.correct_typed_chars = 0
+        self.previous_text = ""
         self.init_ui()
         self.stats_updated.connect(self.display_stats)
 
@@ -64,6 +67,9 @@ class TypingPracticeApp(QWidget):
         self.start_time = None
         self.elapsed_time = 0
         self.is_done = False
+        self.total_typed_chars = 0
+        self.correct_typed_chars = 0
+        self.previous_text = ""
         self.timer.stop()
         self.input_edit.clear()
         self.stats_updated.emit("0", "0%", "0s")
@@ -75,9 +81,20 @@ class TypingPracticeApp(QWidget):
 
     def check_progress(self):
         typed_text = self.input_edit.toPlainText()
-        sample = self.sample_text[:len(typed_text)]
-        correct_chars = sum(1 for a, b in zip(typed_text, sample) if a == b)
-        accuracy = (correct_chars / len(typed_text)) * 100 if typed_text else 0
+
+        # Track new characters typed
+        prev_len = len(self.previous_text)
+        current_len = len(typed_text)
+
+        if current_len > prev_len:
+            # Characters were added
+            for i in range(prev_len, current_len):
+                self.total_typed_chars += 1
+                if i < len(self.sample_text) and typed_text[i] == self.sample_text[i]:
+                    self.correct_typed_chars += 1
+
+        # Calculate accuracy based on session statistics (penalizes mistakes even if corrected)
+        accuracy = (self.correct_typed_chars / self.total_typed_chars * 100) if self.total_typed_chars > 0 else 0
 
         if not self.start_time and typed_text:
             self.start_time = time.time()
@@ -85,12 +102,14 @@ class TypingPracticeApp(QWidget):
 
         if self.start_time:
             elapsed = time.time() - self.start_time
-            wpm = (correct_chars / 5) / (elapsed / 60) if elapsed > 0 else 0
+            wpm = (self.correct_typed_chars / 5) / (elapsed / 60) if elapsed > 0 else 0
             self.stats_updated.emit(f"{wpm:.2f}", f"{accuracy:.2f}%", f"{int(elapsed)}s")
             if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text:
                 if not self.is_done:
                     self.is_done = True
                     self.timer.stop()
+
+        self.previous_text = typed_text
 
     def display_stats(self, wpm, accuracy, time_str):
         self.stats_label.setText(f"WPM: {wpm} | Accuracy: {accuracy} | Time: {time_str}")

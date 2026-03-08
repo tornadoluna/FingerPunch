@@ -78,6 +78,11 @@ class TypingPracticeApp(QWidget):
         sample = self.sample_text[:len(typed_text)]
         correct_chars = sum(1 for a, b in zip(typed_text, sample) if a == b)
         accuracy = (correct_chars / len(typed_text)) * 100 if typed_text else 0
+
+        if not self.start_time and typed_text:
+            self.start_time = time.time()
+            self.timer.start(1000)
+
         if self.start_time:
             elapsed = time.time() - self.start_time
             wpm = (correct_chars / 5) / (elapsed / 60) if elapsed > 0 else 0

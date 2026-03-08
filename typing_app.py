@@ -14,6 +14,7 @@ class TypingPracticeApp(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_time)
         self.elapsed_time = 0
+        self.is_done = False
         self.init_ui()
         self.stats_updated.connect(self.display_stats)
 
@@ -62,6 +63,7 @@ class TypingPracticeApp(QWidget):
     def reset_practice(self):
         self.start_time = None
         self.elapsed_time = 0
+        self.is_done = False
         self.timer.stop()
         self.input_edit.clear()
         self.stats_updated.emit("0", "0%", "0s")
@@ -80,6 +82,10 @@ class TypingPracticeApp(QWidget):
             elapsed = time.time() - self.start_time
             wpm = (correct_chars / 5) / (elapsed / 60) if elapsed > 0 else 0
             self.stats_updated.emit(f"{wpm:.2f}", f"{accuracy:.2f}%", f"{int(elapsed)}s")
+            if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text:
+                if not self.is_done:
+                    self.is_done = True
+                    self.timer.stop()
 
     def display_stats(self, wpm, accuracy, time_str):
         self.stats_label.setText(f"WPM: {wpm} | Accuracy: {accuracy} | Time: {time_str}")

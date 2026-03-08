@@ -78,7 +78,7 @@ class TypingPracticeApp(QWidget):
         accuracy = (correct_chars / len(typed_text)) * 100 if typed_text else 0
         if self.start_time:
             elapsed = time.time() - self.start_time
-            wpm = (len(typed_text) / 5) / (elapsed / 60) if elapsed > 0 else 0
+            wpm = (correct_chars / 5) / (elapsed / 60) if elapsed > 0 else 0
             self.stats_updated.emit(f"{wpm:.2f}", f"{accuracy:.2f}%", f"{int(elapsed)}s")
 
     def display_stats(self, wpm, accuracy, time_str):

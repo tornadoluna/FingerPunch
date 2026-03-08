@@ -2,10 +2,12 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButt
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFont
 import time
+from statsWorker import StatsWorker
 
 class TypingPracticeApp(QWidget):
     # Signal to update stats
     stats_updated = Signal(str, str, str)
+    text_updated = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -15,11 +17,14 @@ class TypingPracticeApp(QWidget):
         self.timer.timeout.connect(self.update_time)
         self.elapsed_time = 0
         self.is_done = False
-        self.total_typed_chars = 0
-        self.correct_typed_chars = 0
-        self.previous_text = ""
+        self.last_wpm = "0"
+        self.last_accuracy = "0%"
         self.init_ui()
         self.stats_updated.connect(self.display_stats)
+
+        self.stats_worker = StatsWorker(self)
+        self.stats_worker.stats_updated.connect(self.update_stats)
+        self.stats_worker.start()
 
     def init_ui(self):
         self.setWindowTitle("Typing Practice App")
@@ -67,9 +72,7 @@ class TypingPracticeApp(QWidget):
         self.start_time = None
         self.elapsed_time = 0
         self.is_done = False
-        self.total_typed_chars = 0
-        self.correct_typed_chars = 0
-        self.previous_text = ""
+        self.stats_worker.reset_stats()
         self.timer.stop()
         self.input_edit.clear()
         self.stats_updated.emit("0", "0%", "0s")
@@ -77,39 +80,31 @@ class TypingPracticeApp(QWidget):
     def update_time(self):
         if self.start_time:
             self.elapsed_time = time.time() - self.start_time
-            self.display_stats("0", "0%", f"{int(self.elapsed_time)}s")
+            self.stats_updated.emit(self.last_wpm, self.last_accuracy, f"{int(self.elapsed_time)}s")
 
     def check_progress(self):
         typed_text = self.input_edit.toPlainText()
-
-        # Track new characters typed
-        prev_len = len(self.previous_text)
-        current_len = len(typed_text)
-
-        if current_len > prev_len:
-            # Characters were added
-            for i in range(prev_len, current_len):
-                self.total_typed_chars += 1
-                if i < len(self.sample_text) and typed_text[i] == self.sample_text[i]:
-                    self.correct_typed_chars += 1
-
-        # Calculate accuracy based on session statistics (penalizes mistakes even if corrected)
-        accuracy = (self.correct_typed_chars / self.total_typed_chars * 100) if self.total_typed_chars > 0 else 0
+        self.text_updated.emit(typed_text)  # Emit signal with current text
 
         if not self.start_time and typed_text:
             self.start_time = time.time()
             self.timer.start(1000)
 
-        if self.start_time:
-            elapsed = time.time() - self.start_time
-            wpm = (self.correct_typed_chars / 5) / (elapsed / 60) if elapsed > 0 else 0
-            self.stats_updated.emit(f"{wpm:.2f}", f"{accuracy:.2f}%", f"{int(elapsed)}s")
-            if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text:
-                if not self.is_done:
-                    self.is_done = True
-                    self.timer.stop()
+        if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text:
+            if not self.is_done:
+                self.is_done = True
+                self.timer.stop()
 
-        self.previous_text = typed_text
+    def update_stats(self, wpm, accuracy):
+        elapsed_time = time.time() - self.start_time
+        self.last_wpm = wpm
+        self.last_accuracy = accuracy
+        self.stats_updated.emit(f"{wpm}", f"{accuracy}", f"{int(elapsed_time)}s")
 
     def display_stats(self, wpm, accuracy, time_str):
         self.stats_label.setText(f"WPM: {wpm} | Accuracy: {accuracy} | Time: {time_str}")
+
+    def closeEvent(self, event):
+        # Stop the stats worker thread on close
+        self.stats_worker.stop_worker()
+        super().closeEvent(event)

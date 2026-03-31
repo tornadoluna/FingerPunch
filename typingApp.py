@@ -3,7 +3,7 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFont
 import time
 from statsWorker import StatsWorker
-from text_generator import generate_mixed_text
+from textGenerator import generate_mixed_text
 
 class TypingPracticeApp(QWidget):
     stats_updated = Signal(str, str, str)
@@ -52,7 +52,7 @@ class TypingPracticeApp(QWidget):
         self.text_label = QLabel(self.sample_text)
         self.text_label.setWordWrap(True)
         self.text_label.setFont(QFont("Arial", 14))
-        self.text_label.setStyleSheet("padding: 10px; color: #000000;")
+        self.text_label.setStyleSheet("padding: 10px; color: #000000; background-color: #ffffff;")
         sample_layout.addWidget(self.text_label)
         sample_group.setLayout(sample_layout)
         main_layout.addWidget(sample_group)

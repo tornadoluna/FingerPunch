@@ -77,6 +77,7 @@ class TypingPracticeApp(QWidget):
         self.text_label.setStyleSheet("padding: 15px; color: #ffffff; background-color: #3c3c3c; border-radius: 5px;")
         self.text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         sample_layout.addWidget(self.text_label)
+        sample_layout.addWidget(self.progress_bar)
         sample_group.setLayout(sample_layout)
         sample_group.setMinimumHeight(150)
         main_layout.addWidget(sample_group)
@@ -118,9 +119,6 @@ class TypingPracticeApp(QWidget):
         self.input_edit.textChanged.connect(self.check_progress)
         input_layout.addWidget(self.input_edit)
 
-        self.progress_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        input_layout.addWidget(self.progress_bar)
-
         input_group.setLayout(input_layout)
         input_group.setMinimumHeight(200)
         main_layout.addWidget(input_group)
@@ -160,9 +158,17 @@ class TypingPracticeApp(QWidget):
         length_layout = QHBoxLayout()
         length_layout.setSpacing(15)
 
-        length_label = QLabel("Text Length (words):")
+        length_label = QLabel("Sample Text Length:")
         length_label.setFont(QFont("Segoe UI", 12))
-        length_label.setStyleSheet("color: #ffffff;")
+        length_label.setStyleSheet("""
+            QLabel {
+                padding: 8px;
+                border: 2px solid #555;
+                border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+            }
+        """)
         length_layout.addWidget(length_label)
 
         self.word_count_combo = QComboBox()
@@ -171,7 +177,7 @@ class TypingPracticeApp(QWidget):
             QComboBox {
                 padding: 8px;
                 border: 2px solid #555;
-                border-radius: 5px;
+                border-radius: 8px;
                 background-color: #3c3c3c;
                 color: #ffffff;
                 min-width: 120px;
@@ -181,16 +187,13 @@ class TypingPracticeApp(QWidget):
             }
             QComboBox::drop-down {
                 border: none;
-            }
-            QComboBox::down-arrow {
-                image: url(down_arrow.png); /* Optional: custom arrow */
-                width: 12px;
-                height: 12px;
+                background-color: #3c3c3c;
             }
         """)
         self.word_count_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.word_count_combo.addItems(["10", "20", "30", "40", "50", "60", "70", "80", "90", "100", "150", "200", "300", "500"])
         self.word_count_combo.setCurrentText("50")
+        self.word_count_combo.setToolTip("Select the number of words for the sample text")
         self.word_count_combo.currentTextChanged.connect(self.on_word_count_changed)
         length_layout.addWidget(self.word_count_combo)
         length_layout.addStretch()

@@ -53,7 +53,6 @@ class TypingPracticeApp(QWidget):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(25, 25, 25, 25)
 
-        # Sample Text Group
         sample_group = QGroupBox("Sample Text")
         sample_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         sample_group.setStyleSheet("""
@@ -82,7 +81,6 @@ class TypingPracticeApp(QWidget):
         sample_group.setMinimumHeight(150)
         main_layout.addWidget(sample_group)
 
-        # Input Group
         input_group = QGroupBox("Your Typing")
         input_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         input_group.setStyleSheet("""
@@ -120,7 +118,6 @@ class TypingPracticeApp(QWidget):
         self.input_edit.textChanged.connect(self.check_progress)
         input_layout.addWidget(self.input_edit)
 
-        # Progress Bar
         self.progress_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         input_layout.addWidget(self.progress_bar)
 
@@ -128,7 +125,6 @@ class TypingPracticeApp(QWidget):
         input_group.setMinimumHeight(200)
         main_layout.addWidget(input_group)
 
-        # Control Group
         control_group = QGroupBox("Statistics and Controls")
         control_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         control_group.setStyleSheet("""
@@ -161,7 +157,6 @@ class TypingPracticeApp(QWidget):
         """)
         control_layout.addWidget(self.stats_label)
 
-        # Text length selector
         length_layout = QHBoxLayout()
         length_layout.setSpacing(15)
 
@@ -304,7 +299,6 @@ class TypingPracticeApp(QWidget):
         self.reset_practice()
 
     def on_word_count_changed(self, text):
-        """Handle word count combo box value changes"""
         self.text_length = int(text)
         self.load_new_sample_text()
 
@@ -317,6 +311,20 @@ class TypingPracticeApp(QWidget):
         typed_text = self.input_edit.toPlainText()
         self.text_updated.emit(typed_text)
 
+        html = ""
+        for i, char in enumerate(typed_text):
+            if i < len(self.sample_text) and char == self.sample_text[i]:
+                html += char.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            else:
+                html += f'<span style="color: red;">{char.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</span>'
+
+        self.input_edit.textChanged.disconnect(self.check_progress)
+        cursor = self.input_edit.textCursor()
+        pos = cursor.position()
+        self.input_edit.setHtml(html)
+        cursor.setPosition(min(pos, len(typed_text)))
+        self.input_edit.setTextCursor(cursor)
+        self.input_edit.textChanged.connect(self.check_progress)
         progress = min(len(typed_text) / len(self.sample_text) * 100, 100) if self.sample_text else 0
         self.progress_bar.setValue(int(progress))
 

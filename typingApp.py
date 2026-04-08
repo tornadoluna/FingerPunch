@@ -312,20 +312,20 @@ class TypingPracticeApp(QWidget):
         self.text_updated.emit(typed_text)
 
         html = ""
-        for i, char in enumerate(typed_text):
-            if i < len(self.sample_text) and char == self.sample_text[i]:
-                html += char.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        correct_count = 0
+        for i, char in enumerate(self.sample_text):
+            escaped_char = char.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            if i < len(typed_text):
+                if typed_text[i] == char:
+                    html += f'<span style="color: #4CAF50;">{escaped_char}</span>'  # Green for correct
+                    correct_count += 1
+                else:
+                    html += f'<span style="color: red;">{escaped_char}</span>'  # Red for incorrect
             else:
-                html += f'<span style="color: red;">{char.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</span>'
+                html += escaped_char
+        self.text_label.setText(html)
 
-        self.input_edit.textChanged.disconnect(self.check_progress)
-        cursor = self.input_edit.textCursor()
-        pos = cursor.position()
-        self.input_edit.setHtml(html)
-        cursor.setPosition(min(pos, len(typed_text)))
-        self.input_edit.setTextCursor(cursor)
-        self.input_edit.textChanged.connect(self.check_progress)
-        progress = min(len(typed_text) / len(self.sample_text) * 100, 100) if self.sample_text else 0
+        progress = min(correct_count / len(self.sample_text) * 100, 100) if self.sample_text else 0
         self.progress_bar.setValue(int(progress))
 
         if not self.start_time and typed_text:

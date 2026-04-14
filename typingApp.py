@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy
-from PySide6.QtCore import QTimer, Signal, Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QStyle
 import time
@@ -21,6 +21,7 @@ class TypingPracticeApp(QWidget):
         self.is_done = False
         self.last_wpm = "0"
         self.last_accuracy = "0%"
+        self.last_scroll_position = 0
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -45,8 +46,8 @@ class TypingPracticeApp(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("FingerPunch")
-        self.resize(900, 600)
-        self.setMinimumSize(800, 600)
+        self.resize(900, 700)
+        self.setMinimumSize(800, 700)
         self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")
 
         main_layout = QVBoxLayout()
@@ -71,15 +72,32 @@ class TypingPracticeApp(QWidget):
             }
         """)
         sample_layout = QVBoxLayout()
-        self.text_label = QLabel(self.sample_text)
-        self.text_label.setWordWrap(True)
+        self.text_label = QTextBrowser()
+        self.text_label.setText(self.sample_text)
         self.text_label.setFont(QFont("Segoe UI", 16))
-        self.text_label.setStyleSheet("padding: 15px; color: #ffffff; background-color: #3c3c3c; border-radius: 5px;")
+        self.text_label.setStyleSheet("""
+            QTextBrowser {
+                padding: 15px;
+                color: #ffffff;
+                background-color: #3c3c3c;
+                border-radius: 5px;
+                border: none;
+            }
+            QTextBrowser QScrollBar:vertical {
+                width: 0px;
+                background: transparent;
+            }
+            QTextBrowser QScrollBar:horizontal {
+                height: 0px;
+                background: transparent;
+            }
+        """)
+        self.text_label.setReadOnly(True)
         self.text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         sample_layout.addWidget(self.text_label)
         sample_layout.addWidget(self.progress_bar)
         sample_group.setLayout(sample_layout)
-        sample_group.setMinimumHeight(150)
+        sample_group.setMinimumHeight(200)
         main_layout.addWidget(sample_group)
 
         input_group = QGroupBox("Your Typing")
@@ -326,7 +344,13 @@ class TypingPracticeApp(QWidget):
                     html += f'<span style="color: red;">{escaped_char}</span>'  # Red for incorrect
             else:
                 html += escaped_char
-        self.text_label.setText(html)
+        self.text_label.setHtml(html)
+
+        # Scroll to keep current typing position visible
+        cursor = self.text_label.textCursor()
+        cursor.setPosition(min(len(typed_text), len(self.sample_text)))
+        self.text_label.setTextCursor(cursor)
+        self.text_label.ensureCursorVisible()
 
         progress = min(correct_count / len(self.sample_text) * 100, 100) if self.sample_text else 0
         self.progress_bar.setValue(int(progress))

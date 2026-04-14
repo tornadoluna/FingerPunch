@@ -1,10 +1,144 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser
-from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser, QDialog, QDialogButtonBox
+from PySide6.QtCore import QTimer, Signal, Qt
+from PySide6.QtGui import QFont, QIcon, QTextCursor
 from PySide6.QtWidgets import QStyle
 import time
 from statsWorker import StatsWorker
 from textGenerator import generate_mixed_text
+
+class ResultsDialog(QDialog):
+    def __init__(self, stats, parent=None):
+        super().__init__(parent)
+        self.stats = stats
+        self.setWindowTitle("Typing Session Complete!")
+        self.setModal(True)
+        self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")
+        self.resize(500, 400)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+
+        title = QLabel("🎉 Session Complete! 🎉")
+        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("color: #4CAF50; margin-bottom: 10px;")
+        layout.addWidget(title)
+
+        stats_layout = QVBoxLayout()
+        stats_layout.setSpacing(15)
+
+        primary_stats = [
+            ("Words Per Minute", f"{self.stats['wpm']:.1f} WPM"),
+            ("Accuracy", f"{self.stats['accuracy']:.1f}%"),
+            ("Time Taken", f"{self.stats['time']:.1f}s")
+        ]
+
+        for label, value in primary_stats:
+            stat_layout = QHBoxLayout()
+            stat_label = QLabel(f"{label}:")
+            stat_label.setFont(QFont("Segoe UI", 14))
+            stat_label.setStyleSheet("color: #cccccc;")
+            stat_label.setMinimumWidth(150)
+
+            stat_value = QLabel(value)
+            stat_value.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+            stat_value.setStyleSheet("color: #ffffff;")
+            stat_value.setAlignment(Qt.AlignRight)
+
+            stat_layout.addWidget(stat_label)
+            stat_layout.addWidget(stat_value)
+            stats_layout.addLayout(stat_layout)
+
+        separator = QLabel("")
+        separator.setStyleSheet("border-top: 1px solid #555; margin: 10px 0;")
+        stats_layout.addWidget(separator)
+
+        detailed_stats = [
+            ("Characters Typed", f"{self.stats['total_chars']}"),
+            ("Correct Characters", f"{self.stats['correct_chars']}"),
+            ("Total Keystrokes", f"{self.stats['keystrokes']}"),
+            ("Typing Efficiency", f"{self.stats['efficiency']:.1f}%")
+        ]
+
+        for label, value in detailed_stats:
+            stat_layout = QHBoxLayout()
+            stat_label = QLabel(f"{label}:")
+            stat_label.setFont(QFont("Segoe UI", 12))
+            stat_label.setStyleSheet("color: #aaaaaa;")
+            stat_label.setMinimumWidth(150)
+
+            stat_value = QLabel(value)
+            stat_value.setFont(QFont("Segoe UI", 12))
+            stat_value.setStyleSheet("color: #cccccc;")
+            stat_value.setAlignment(Qt.AlignRight)
+
+            stat_layout.addWidget(stat_label)
+            stat_layout.addWidget(stat_value)
+            stats_layout.addLayout(stat_layout)
+
+        layout.addLayout(stats_layout)
+
+        performance_msg = self.get_performance_message()
+        msg_label = QLabel(performance_msg)
+        msg_label.setFont(QFont("Segoe UI", 12))
+        msg_label.setStyleSheet("color: #4CAF50; padding: 10px; background-color: #3c3c3c; border-radius: 5px;")
+        msg_label.setWordWrap(True)
+        msg_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(msg_label)
+
+        button_box = QDialogButtonBox()
+        button_box.setStyleSheet("""
+            QDialogButtonBox {
+                border: none;
+            }
+            QPushButton {
+                padding: 8px 20px;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-size: 12px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3e8e41;
+            }
+        """)
+
+        retry_button = button_box.addButton("Try Again", QDialogButtonBox.ButtonRole.AcceptRole)
+        new_text_button = button_box.addButton("New Text", QDialogButtonBox.ButtonRole.ActionRole)
+        close_button = button_box.addButton("Close", QDialogButtonBox.ButtonRole.RejectRole)
+
+        retry_button.clicked.connect(self.accept)
+        new_text_button.clicked.connect(self.new_text)
+        close_button.clicked.connect(self.reject)
+
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+    def get_performance_message(self):
+        wpm = self.stats['wpm']
+        accuracy = self.stats['accuracy']
+
+        if accuracy >= 98 and wpm >= 60:
+            return "🏆 Excellent! You're a typing master!"
+        elif accuracy >= 95 and wpm >= 40:
+            return "💪 Great job! Keep practicing to improve your speed."
+        elif accuracy >= 90:
+            return "👍 Good work! Focus on accuracy and speed will follow."
+        elif accuracy >= 80:
+            return "📚 Keep practicing! Accuracy is the foundation of good typing."
+        else:
+            return "🎯 Don't give up! Every expert was once a beginner. Keep trying!"
+
+    def new_text(self):
+        self.done(2)
 
 class TypingPracticeApp(QWidget):
     stats_updated = Signal(str, str, str)
@@ -363,6 +497,8 @@ class TypingPracticeApp(QWidget):
             if not self.is_done:
                 self.is_done = True
                 self.timer.stop()
+                # Show results dialog
+                self.show_results_dialog()
 
     def update_stats(self, wpm, accuracy):
         elapsed_time = time.time() - self.start_time
@@ -372,6 +508,18 @@ class TypingPracticeApp(QWidget):
 
     def display_stats(self, wpm, accuracy, time_str):
         self.stats_label.setText(f"WPM: {wpm} | Accuracy: {accuracy} | Time: {time_str}")
+
+    def show_results_dialog(self):
+        """Show the results dialog with final statistics"""
+        stats = self.stats_worker.get_final_stats()
+        dialog = ResultsDialog(stats, self)
+        result = dialog.exec()
+
+        if result == dialog.Accepted:  # Try Again
+            self.reset_practice()
+        elif result == 2:  # New Text (custom return code)
+            self.load_new_sample_text()
+        # If rejected (Close), just close the dialog and do nothing
 
     def closeEvent(self, event):
         self.stats_worker.stop_worker()

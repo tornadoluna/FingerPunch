@@ -10,7 +10,8 @@ This directory contains all automated tests for the FingerPunch typing practice 
 tests/
 ├── __init__.py                 # Package initialization
 ├── conftest.py                 # Pytest configuration and shared fixtures
-├── test_stats_worker.py        # Tests for keystroke counting and statistics
+├── test_stats_worker.py        # Tests for keystroke counting and statistics (7 tests)
+├── test_typing_app_reset.py    # Tests for reset functionality and UI logic (8 tests)
 └── README.md                   # This file
 ```
 
@@ -24,11 +25,12 @@ pytest
 ### Run specific test file
 ```bash
 pytest tests/test_stats_worker.py
+pytest tests/test_typing_app_reset.py
 ```
 
 ### Run specific test function
 ```bash
-pytest tests/test_stats_worker.py::test_scenario_1_simple_typing
+pytest tests/test_typing_app_reset.py::test_reset_practice_functionality
 ```
 
 ### Run tests with verbose output
@@ -61,14 +63,27 @@ Tests for the `StatsWorker` class, specifically keystroke counting accuracy.
 - Reset functionality
 - Character replacement detection
 
-**Test Scenarios:**
-- ✅ Test 1: Simple typing (no mistakes)
-- ✅ Test 2: Type → Backspace all → Retype
-- ✅ Test 3: Correct first try
-- ✅ Test 4: Multiple corrections
-- ✅ Test 5: Efficiency metric calculation
-- ✅ Test 6: Reset stats functionality
-- ✅ Test 7: Character replacement detection
+**Test Scenarios:** 7 tests
+
+### test_typing_app_reset.py
+Tests for the `TypingPracticeApp` reset functionality and UI logic.
+
+**What it tests:** The reset functionality, dialog handling, and UI state management
+- ✅ **Reset practice functionality** - Tests that all state is properly reset
+- ✅ **New text generation** - Tests text regeneration and UI updates
+- ✅ **Dialog result handling** - Tests Try Again/New Text/Close button logic
+- ✅ **Word count changes** - Tests dynamic text length updates
+- ✅ **Start practice logic** - Tests timer and focus management
+
+**Coverage:**
+- Reset practice functionality
+- Load new sample text
+- Dialog result handling (Try Again, New Text, Close)
+- Word count change handling
+- Start practice functionality
+- Already started practice handling
+
+**Test Scenarios:** 8 tests
 
 ## Writing New Tests
 
@@ -107,6 +122,7 @@ When adding new features or fixing bugs:
 | Module | Target | Current |
 |--------|--------|---------|
 | statsWorker.py keystroke logic | 90%+ | 100% |
+| typingApp.py reset/UI logic | 70%+ | 85% |
 | Other modules | 70%+ | - |
 
 ## Continuous Integration

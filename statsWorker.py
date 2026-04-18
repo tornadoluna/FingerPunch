@@ -12,22 +12,37 @@ class StatsWorker(QThread):
         self.current_text = ""
         self.previous_text = ""
         self.total_keystrokes = 0
+        self.deletions = 0
+        self.additions = 0
         self.app.text_updated.connect(self.receive_text)
 
     def run(self):
         while self.running:
             self.request_text.emit()
-            self.msleep(100)  # Update stats every 100ms
+            self.msleep(100)
 
     def receive_text(self, text):
         self.current_text = text
+        self._update_keystroke_stats()
+
+    def _update_keystroke_stats(self):
 
         prev_len = len(self.previous_text)
         current_len = len(self.current_text)
 
-        if current_len != prev_len:
-            keystroke_diff = abs(current_len - prev_len)
-            self.total_keystrokes += keystroke_diff
+        if prev_len == current_len:
+            if self.previous_text != self.current_text:
+                for i in range(current_len):
+                    if i < len(self.previous_text) and self.current_text[i] != self.previous_text[i]:
+                        self.total_keystrokes += 2
+        elif current_len > prev_len:
+            chars_added = current_len - prev_len
+            self.additions += chars_added
+            self.total_keystrokes += chars_added
+        else:
+            chars_deleted = prev_len - current_len
+            self.deletions += chars_deleted
+            self.total_keystrokes += chars_deleted
 
         typed_length = len(self.current_text)
         sample_length = len(self.app.sample_text)
@@ -48,6 +63,8 @@ class StatsWorker(QThread):
 
     def reset_stats(self):
         self.total_keystrokes = 0
+        self.deletions = 0
+        self.additions = 0
         self.previous_text = ""
         self.current_text = ""
 

@@ -496,9 +496,9 @@ class TypingPracticeApp(QWidget):
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()
 
-        if result == dialog.Accepted:
+        if result == QDialog.Accepted:
             self.reset_practice()
-        elif result == 2:
+        elif result == 2:  # New Text button
             self.load_new_sample_text()
 
     def closeEvent(self, event):

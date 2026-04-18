@@ -275,7 +275,7 @@ class TypingPracticeApp(QWidget):
         input_group.setMinimumHeight(200)
         main_layout.addWidget(input_group)
 
-        control_group = QGroupBox("Statistics and Controls")
+        control_group = QGroupBox("Controls")
         control_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         control_group.setStyleSheet("""
             QGroupBox {

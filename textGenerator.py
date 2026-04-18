@@ -85,47 +85,31 @@ def generate_sentence():
 
 
 def generate_mixed_text(length=50):
-    """Generate multiple sentences to reach approximately the desired word count.
-
-    Args:
-        length: Target number of words (default: 50)
-
-    Returns:
-        String of sentences that approximates the target word count
-    """
     sentences = []
     current_word_count = 0
 
     while current_word_count < length:
         sentence = generate_sentence()
         sentences.append(sentence)
-        # Count words in the sentence (excluding punctuation)
         words_in_sentence = [w for w in sentence.replace(".", "").split() if w]
         word_count = len(words_in_sentence)
         current_word_count += word_count
 
     text = " ".join(sentences)
-
-    # Trim sentences if we exceeded target word count significantly
-    # Split by sentence (on periods) to preserve punctuation structure
     words_needed = length
     result_sentences = []
     total_words = 0
 
     for sentence in sentences:
-        # Count words in this sentence (without punctuation)
         sentence_words = [w for w in sentence.replace(".", "").split() if w]
         sentence_word_count = len(sentence_words)
 
         if total_words + sentence_word_count <= words_needed:
-            # Include the full sentence
             result_sentences.append(sentence)
             total_words += sentence_word_count
         else:
-            # We need to trim this sentence
             remaining_words = words_needed - total_words
             if remaining_words > 0:
-                # Include partial sentence
                 words_in_sentence = [w for w in sentence.replace(".", "").split() if w]
                 trimmed_words = words_in_sentence[:remaining_words]
                 result_sentences.append(" ".join(trimmed_words) + ".")

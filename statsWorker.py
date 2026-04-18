@@ -77,7 +77,6 @@ class StatsWorker(QThread):
             'wpm': wpm,
             'accuracy': accuracy,
             'time': elapsed,
-            'correct_chars': correct_chars,
             'total_chars': typed_length,
             'keystrokes': self.total_keystrokes,
             'efficiency': (correct_chars / self.total_keystrokes * 100) if self.total_keystrokes > 0 else 100.0

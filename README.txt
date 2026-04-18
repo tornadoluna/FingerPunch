@@ -4,7 +4,7 @@
 
 ## Vision
 
-FingerPunch will revolutionize typing education by combining traditional typing practice with computer vision technology to provide real-time feedback on finger placement. Unlike standard typing tutors that focus only on speed and accuracy, FingerPunch will teach users to use the optimal fingers for each key, leading to more efficient, ergonomic, and faster typing.
+FingerPunch will fill a niche in typing practice by combining traditional typing practice with computer vision technology to provide real-time feedback on finger placement. Unlike standard typing tutors that focus only on speed and accuracy, FingerPunch will teach users to use the optimal fingers for each key, leading to more efficient, ergonomic, and faster typing.
 
 ### Personal Motivation
 
@@ -26,7 +26,6 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 
 ### 3. Ergonomic Awareness
 - Posture Guidance: Tips for proper typing posture
-- Fatigue Prevention: Break reminders and ergonomic suggestions
 - Customizable Layouts: Support for different keyboard layouts
 ## Current Features
 
@@ -43,14 +42,12 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 ### In Development
 - Data Persistence: Session history and long-term progress tracking
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
-- Finger Mapping: Real-time finger-to-key correlation
 
 ### Future Enhancements
-- Adaptive Difficulty: AI-powered text complexity adjustment
-- Multi-language Support: Practice in different languages
+- Improve text generation with markov chains or GPT-3 for more natural sentences
+- Adaptive Difficulty: Dynamic text complexity based on user performance
 - Keyboard Layout Support: QWERTY, Dvorak, Colemak, etc.
 - Accessibility Features: Screen reader support, high contrast modes
-- Mobile Companion: Progress synchronization across devices
 ## Technology Stack
 - Frontend: PySide6 (Qt6) - Modern, cross-platform GUI
 - Backend: Python 3.12+ - Core application logic
@@ -131,7 +128,7 @@ FingerPunch/
 ## Testing & Quality
 
 ### Test Coverage
-- statsWorker.py: 86% (keystroke logic)
+- statsWorker.py: 86% (keystroke logic and stats calculation)
 - typingApp.py: 85% (UI functionality)
 - textGenerator.py: 85% (text generation)
 - Overall: 65%+ with 20+ automated tests
@@ -150,63 +147,29 @@ pytest tests/test_stats_worker.py -v
 
 ## Development Roadmap
 
-### Phase 1: Core Functionality ✅
+### Phase 1: Core Functionality
 - [x] Basic typing interface
 - [x] Real-time metrics
 - [x] Text generation
 - [x] Results display
 - [x] Comprehensive testing
 
-### Phase 2: Data Persistence 🔄
+### Phase 2: Data Persistence
 - [ ] SQLite database integration
 - [ ] Session history storage
 - [ ] Progress visualization
 - [ ] User profiles
 
-### Phase 3: Camera Integration 📅
+### Phase 3: Camera Integration
 - [ ] OpenCV setup
-- [ ] Finger detection algorithms
-- [ ] Real-time finger tracking
-- [ ] Finger-key correlation
+- [ ] MediaPipe finger tracking
+- [ ] Real-time finger to keystroke mapping
+- [ ] Finger placement feedback
 
-### Phase 4: Advanced Features 🎯
+### Phase 4: Advanced Features
 - [ ] Adaptive difficulty
 - [ ] Multi-language support
 - [ ] Performance analytics
-- [ ] Mobile synchronization
-
-## Contributing
-
-### Development Setup
-```bash
-# Fork and clone
-git clone https://github.com/yourusername/fingerpunch.git
-cd fingerpunch
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run tests
-pytest
-```
-
-### Code Standards
-- Testing: Write tests for new features
-- Documentation: Update README for significant changes
-- Style: Follow PEP 8 guidelines
-- Commits: Use descriptive commit messages
-
-### Adding Features
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Write tests first (TDD approach)
-3. Implement the feature
-4. Ensure all tests pass
-5. Update documentation
-6. Submit a pull request
 
 ## Performance Metrics
 
@@ -230,7 +193,7 @@ pytest
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Acknowledgments
 
@@ -248,10 +211,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Mission Statement
 
-To democratize typing education by making finger training accessible, engaging, and scientifically-backed through computer vision technology.
+To help typists of all levels improve their typing technique by providing real-time feedback on finger placement.
 
 ---
 
 Ready to improve your typing technique? Start practicing with FingerPunch today!
-
-Built with care for typists who want to master their craft.

@@ -416,7 +416,7 @@ class TypingPracticeApp(QWidget):
         control_group.setMinimumHeight(120)
         main_layout.addWidget(control_group)
 
-        main_layout.addStretch()  # Allow sections to expand
+        main_layout.addStretch()
 
         self.setLayout(main_layout)
 
@@ -460,15 +460,14 @@ class TypingPracticeApp(QWidget):
             escaped_char = char.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             if i < len(typed_text):
                 if typed_text[i] == char:
-                    html += f'<span style="color: #4CAF50;">{escaped_char}</span>'  # Green for correct
+                    html += f'<span style="color: #4CAF50;">{escaped_char}</span>'
                     correct_count += 1
                 else:
-                    html += f'<span style="color: red;">{escaped_char}</span>'  # Red for incorrect
+                    html += f'<span style="color: red;">{escaped_char}</span>'
             else:
                 html += escaped_char
         self.text_label.setHtml(html)
 
-        # Scroll to keep current typing position visible
         cursor = self.text_label.textCursor()
         cursor.setPosition(min(len(typed_text), len(self.sample_text)))
         self.text_label.setTextCursor(cursor)
@@ -485,7 +484,6 @@ class TypingPracticeApp(QWidget):
             if not self.is_done:
                 self.is_done = True
                 self.timer.stop()
-                # Show results dialog
                 self.show_results_dialog()
 
     def update_stats(self, wpm, accuracy):
@@ -496,16 +494,14 @@ class TypingPracticeApp(QWidget):
 
 
     def show_results_dialog(self):
-        """Show the results dialog with final statistics"""
         stats = self.stats_worker.get_final_stats()
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()
 
-        if result == dialog.Accepted:  # Try Again
+        if result == dialog.Accepted:
             self.reset_practice()
-        elif result == 2:  # New Text (custom return code)
+        elif result == 2:
             self.load_new_sample_text()
-        # If rejected (Close), just close the dialog and do nothing
 
     def closeEvent(self, event):
         self.stats_worker.stop_worker()

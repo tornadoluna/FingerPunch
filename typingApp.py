@@ -494,9 +494,6 @@ class TypingPracticeApp(QWidget):
         self.last_accuracy = accuracy
         self.stats_updated.emit(f"{wpm}", f"{accuracy}", f"{int(elapsed_time)}s")
 
-    def display_stats(self, wpm, accuracy, time_str):
-        # Stats are now shown only in the results dialog after completion
-        pass
 
     def show_results_dialog(self):
         """Show the results dialog with final statistics"""

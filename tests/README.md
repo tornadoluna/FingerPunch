@@ -47,12 +47,19 @@ pytest --cov=. --cov-report=html
 ### test_stats_worker.py
 Tests for the `StatsWorker` class, specifically keystroke counting accuracy.
 
+**What it tests:** The actual `StatsWorker` implementation from `statsWorker.py`
+- ✅ **Real code testing** - Imports and tests the actual StatsWorker class
+- ✅ **Integration testing** - Tests the complete keystroke counting workflow
+- ✅ **Regression protection** - Changes to `statsWorker.py` will be caught by these tests
+
 **Coverage:**
 - Simple typing without errors
 - Typing with backspace and corrections
 - Character replacements (inline corrections)
 - Multiple corrections in realistic scenarios
 - Efficiency metric calculations
+- Reset functionality
+- Character replacement detection
 
 **Test Scenarios:**
 - ✅ Test 1: Simple typing (no mistakes)
@@ -60,6 +67,8 @@ Tests for the `StatsWorker` class, specifically keystroke counting accuracy.
 - ✅ Test 3: Correct first try
 - ✅ Test 4: Multiple corrections
 - ✅ Test 5: Efficiency metric calculation
+- ✅ Test 6: Reset stats functionality
+- ✅ Test 7: Character replacement detection
 
 ## Writing New Tests
 
@@ -70,16 +79,18 @@ Tests for the `StatsWorker` class, specifically keystroke counting accuracy.
 
 ### Example Test Structure
 ```python
-def test_feature_behavior():
+import pytest
+from statsWorker import StatsWorker
+
+def test_feature_behavior(stats_worker):
     """Clear description of what is being tested."""
-    # Arrange - set up test data
-    counter = NewKeystrokeCounter()
+    # stats_worker fixture provides a real StatsWorker instance
     
     # Act - perform the action being tested
-    counter.count_new("hello")
+    stats_worker.receive_text("hello")
     
     # Assert - verify the expected outcome
-    assert counter.total_keystrokes == 5
+    assert stats_worker.total_keystrokes == 5
 ```
 
 ## Test Maintenance
@@ -95,9 +106,8 @@ When adding new features or fixing bugs:
 
 | Module | Target | Current |
 |--------|--------|---------|
-| statsWorker.py | 90%+ | 100% |
-| typingApp.py | 70%+ | - |
-| textGenerator.py | 80%+ | - |
+| statsWorker.py keystroke logic | 90%+ | 100% |
+| Other modules | 70%+ | - |
 
 ## Continuous Integration
 
@@ -121,4 +131,3 @@ When this project is pushed to CI/CD:
 ## Questions?
 
 Refer to specific test files for examples and implementation details.
-

@@ -172,7 +172,6 @@ class TypingPracticeApp(QWidget):
             }
         """)
         self.init_ui()
-        self.stats_updated.connect(self.display_stats)
 
         self.stats_worker = StatsWorker(self)
         self.stats_worker.stats_updated.connect(self.update_stats)

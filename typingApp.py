@@ -294,18 +294,6 @@ class TypingPracticeApp(QWidget):
         """)
         control_layout = QVBoxLayout()
 
-        self.stats_label = QLabel("WPM: 0 | Accuracy: 0% | Time: 0s")
-        self.stats_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        self.stats_label.setStyleSheet("""
-            QLabel {
-                padding: 15px;
-                background-color: #4a4a4a;
-                border-radius: 8px;
-                border: 1px solid #666;
-                color: #ffffff;
-            }
-        """)
-        control_layout.addWidget(self.stats_label)
 
         length_layout = QHBoxLayout()
         length_layout.setSpacing(15)
@@ -425,7 +413,7 @@ class TypingPracticeApp(QWidget):
         control_layout.addLayout(button_layout)
 
         control_group.setLayout(control_layout)
-        control_group.setMinimumHeight(180)
+        control_group.setMinimumHeight(120)
         main_layout.addWidget(control_group)
 
         main_layout.addStretch()  # Allow sections to expand
@@ -507,7 +495,8 @@ class TypingPracticeApp(QWidget):
         self.stats_updated.emit(f"{wpm}", f"{accuracy}", f"{int(elapsed_time)}s")
 
     def display_stats(self, wpm, accuracy, time_str):
-        self.stats_label.setText(f"WPM: {wpm} | Accuracy: {accuracy} | Time: {time_str}")
+        # Stats are now shown only in the results dialog after completion
+        pass
 
     def show_results_dialog(self):
         """Show the results dialog with final statistics"""

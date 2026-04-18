@@ -58,7 +58,6 @@ class ResultsDialog(QDialog):
 
         detailed_stats = [
             ("Characters Typed", f"{self.stats['total_chars']}"),
-            ("Correct Characters", f"{self.stats['correct_chars']}"),
             ("Total Keystrokes", f"{self.stats['keystrokes']}"),
             ("Typing Efficiency", f"{self.stats['efficiency']:.1f}%")
         ]

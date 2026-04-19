@@ -615,20 +615,58 @@ class TypingPracticeApp(QWidget):
         text_history_widget.setLayout(text_history_layout)
         tab_widget.addTab(text_history_widget, "Text History")
 
-        # Performance Chart Tab
-        chart_widget = QWidget()
-        chart_layout = QVBoxLayout()
-        chart_layout.setSpacing(10)
-        chart_layout.setContentsMargins(10, 10, 10, 10)
+        # Performance Overview Tab
+        overview_widget = QWidget()
+        overview_layout = QVBoxLayout()
+        overview_layout.setSpacing(10)
+        overview_layout.setContentsMargins(10, 10, 10, 10)
 
-        self.canvas = FigureCanvas(Figure(figsize=(8, 6)))
-        chart_layout.addWidget(self.canvas)
+        self.overview_canvas = FigureCanvas(Figure(figsize=(10, 8)))
+        overview_layout.addWidget(self.overview_canvas)
 
-        # Initialize the chart
-        self.update_history_chart(sessions)
+        self.update_overview_chart(sessions)
 
-        chart_widget.setLayout(chart_layout)
-        tab_widget.addTab(chart_widget, "Performance Chart")
+        overview_widget.setLayout(overview_layout)
+        tab_widget.addTab(overview_widget, "Overview")
+
+        # Activity Chart Tab
+        activity_widget = QWidget()
+        activity_layout = QVBoxLayout()
+        activity_layout.setSpacing(10)
+        activity_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.activity_canvas = FigureCanvas(Figure(figsize=(10, 6)))
+        activity_layout.addWidget(self.activity_canvas)
+
+        self.update_activity_chart()
+
+        activity_widget.setLayout(activity_layout)
+        tab_widget.addTab(activity_widget, "Activity")
+
+        # Performance by Length Tab
+        length_widget = QWidget()
+        length_layout = QVBoxLayout()
+        length_layout.setSpacing(10)
+        length_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.length_canvas = FigureCanvas(Figure(figsize=(10, 6)))
+        length_layout.addWidget(self.length_canvas)
+
+        self.update_length_chart()
+
+        length_widget.setLayout(length_layout)
+        tab_widget.addTab(length_widget, "By Length")
+
+        # Personal Bests Tab
+        bests_widget = QWidget()
+        bests_layout = QVBoxLayout()
+        bests_layout.setSpacing(15)
+        bests_layout.setContentsMargins(20, 20, 20, 20)
+
+        self.create_personal_bests_display(bests_layout)
+
+        bests_widget.setLayout(bests_layout)
+        tab_widget.addTab(bests_widget, "Personal Bests")
 
         layout.addWidget(tab_widget)
 
@@ -656,7 +694,7 @@ class TypingPracticeApp(QWidget):
         dialog.setLayout(layout)
         dialog.exec()
 
-    def update_history_chart(self, sessions):
+    def update_overview_chart(self, sessions):
         if not sessions:
             return
 
@@ -666,7 +704,7 @@ class TypingPracticeApp(QWidget):
         accuracies = [session[3] for session in sessions]
 
         # Create the plot
-        ax = self.canvas.figure.add_subplot(111)
+        ax = self.overview_canvas.figure.add_subplot(111)
         ax.clear()
         ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
         ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
@@ -683,7 +721,189 @@ class TypingPracticeApp(QWidget):
         ax.legend()
 
         # Refresh the canvas
-        self.canvas.draw()
+        self.overview_canvas.draw()
+
+    def update_activity_chart(self):
+        # Get the current session data
+        sessions = self.data_manager.get_all_sessions()
+        if not sessions:
+            return
+
+        # Extract the last 30 days' data
+        from datetime import timedelta
+        cutoff_date = datetime.now() - timedelta(days=30)
+        recent_sessions = [session for session in sessions if datetime.fromisoformat(session[1]) >= cutoff_date]
+
+        if not recent_sessions:
+            return
+
+        dates = [datetime.fromisoformat(session[1]) for session in recent_sessions]
+        wpms = [session[2] for session in recent_sessions]
+        accuracies = [session[3] for session in recent_sessions]
+
+        # Create the plot
+        ax = self.activity_canvas.figure.add_subplot(111)
+        ax.clear()
+        ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
+        ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
+
+        # Format the date axis
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
+
+        # Labels and title
+        ax.set_xlabel("Date")
+        ax.set_ylabel("WPM / Accuracy")
+        ax.set_title("Typing Activity - Last 30 Days")
+        ax.legend()
+
+        # Refresh the canvas
+        self.activity_canvas.draw()
+
+    def update_length_chart(self):
+        # Get performance by length data
+        length_data = self.data_manager.get_performance_by_length()
+        if not length_data:
+            return
+
+        # Extract data
+        lengths = [row[0] for row in length_data]
+        avg_wpms = [row[1] for row in length_data]
+        best_wpms = [row[2] for row in length_data]
+        avg_accuracies = [row[3] for row in length_data]
+        best_accuracies = [row[4] for row in length_data]
+
+        # Clear the canvas
+        self.length_canvas.figure.clear()
+
+        # Create subplots
+        ax1 = self.length_canvas.figure.add_subplot(111)
+
+        x = list(range(len(lengths)))
+        width = 0.35
+
+        # Bar chart for WPM
+        ax1.bar([i - width/2 for i in x], avg_wpms, width, label='Avg WPM', color='#4CAF50', alpha=0.7)
+        ax1.bar([i + width/2 for i in x], best_wpms, width, label='Best WPM', color='#66BB6A', alpha=0.7)
+        ax1.set_xlabel('Text Length (words)')
+        ax1.set_ylabel('WPM', color='#4CAF50')
+        ax1.tick_params(axis='y', labelcolor='#4CAF50')
+
+        # Line chart for accuracy on secondary axis
+        ax2 = ax1.twinx()
+        ax2.plot(x, avg_accuracies, 'o-', label='Avg Accuracy', color='#2196F3', linewidth=2, markersize=6)
+        ax2.plot(x, best_accuracies, 's-', label='Best Accuracy', color='#42A5F5', linewidth=2, markersize=6)
+        ax2.set_ylabel('Accuracy (%)', color='#2196F3')
+        ax2.tick_params(axis='y', labelcolor='#2196F3')
+
+        # X-axis labels
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(lengths)
+
+        # Title
+        ax1.set_title('Typing Performance by Text Length')
+
+        # Combine legends
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+
+        # Refresh the canvas
+        self.length_canvas.draw()
+
+    def create_personal_bests_display(self, layout):
+        # Get personal bests
+        bests = self.data_manager.get_personal_bests()
+        if not bests:
+            label = QLabel("No personal bests yet. Complete some sessions to generate personal bests.")
+            label.setFont(QFont("Segoe UI", 12))
+            label.setStyleSheet("color: #cccccc;")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            return
+
+        # Get improvement metrics
+        improvements = self.data_manager.get_improvement_metrics()
+
+        # Create a grid layout for better organization
+        from PySide6.QtWidgets import QGridLayout, QGroupBox
+        grid = QGridLayout()
+        grid.setSpacing(10)
+
+        row = 0
+        for key, data in bests.items():
+            # Format the key name
+            display_name = key.replace('_', ' ').title()
+            if key == 'best_wpm':
+                display_name = 'Best WPM'
+            elif key == 'best_accuracy':
+                display_name = 'Best Accuracy'
+            elif key == 'best_efficiency':
+                display_name = 'Best Efficiency'
+            elif key == 'most_chars':
+                display_name = 'Most Characters'
+
+            # Create labels
+            name_label = QLabel(f"{display_name}:")
+            name_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+            name_label.setStyleSheet("color: #ffffff;")
+
+            if key in ['best_wpm', 'best_accuracy', 'best_efficiency']:
+                value_text = f"{data['value']:.1f}"
+            else:
+                value_text = f"{data['value']}"
+
+            value_label = QLabel(value_text)
+            value_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+            value_label.setStyleSheet("color: #4CAF50;")
+
+            # Add date if available
+            date_label = QLabel("")
+            if data['date']:
+                from datetime import datetime
+                date_obj = datetime.fromisoformat(data['date'])
+                date_text = date_obj.strftime("%Y-%m-%d %H:%M")
+                date_label = QLabel(f"({date_text})")
+                date_label.setFont(QFont("Segoe UI", 10))
+                date_label.setStyleSheet("color: #aaaaaa;")
+
+            grid.addWidget(name_label, row, 0)
+            grid.addWidget(value_label, row, 1)
+            grid.addWidget(date_label, row, 2)
+            row += 1
+
+        # Add improvement metrics
+        if improvements and improvements['wpm_improvement'] != 0:
+            separator = QLabel("")
+            separator.setStyleSheet("height: 2px; background-color: #555; margin: 10px 0;")
+            grid.addWidget(separator, row, 0, 1, 3)
+            row += 1
+
+            improvement_title = QLabel("Improvement Metrics:")
+            improvement_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+            improvement_title.setStyleSheet("color: #ffffff;")
+            grid.addWidget(improvement_title, row, 0, 1, 3)
+            row += 1
+
+            wpm_imp_label = QLabel(f"WPM Improvement: {improvements['wpm_improvement']:+.1f}")
+            wpm_imp_label.setFont(QFont("Segoe UI", 11))
+            wpm_imp_label.setStyleSheet("color: #4CAF50;" if improvements['wpm_improvement'] > 0 else "color: #f44336;")
+            grid.addWidget(wpm_imp_label, row, 0, 1, 3)
+            row += 1
+
+            acc_imp_label = QLabel(f"Accuracy Improvement: {improvements['accuracy_improvement']:+.1f}%")
+            acc_imp_label.setFont(QFont("Segoe UI", 11))
+            acc_imp_label.setStyleSheet("color: #4CAF50;" if improvements['accuracy_improvement'] > 0 else "color: #f44336;")
+            grid.addWidget(acc_imp_label, row, 0, 1, 3)
+            row += 1
+
+            consistency_label = QLabel(f"Consistency Score: {improvements['consistency_score']:.1f}/100")
+            consistency_label.setFont(QFont("Segoe UI", 11))
+            consistency_label.setStyleSheet("color: #2196F3;")
+            grid.addWidget(consistency_label, row, 0, 1, 3)
+
+        layout.addLayout(grid)
 
     def get_history_html(self, sessions):
         from datetime import datetime

@@ -41,6 +41,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
+- Advanced Analytics: MonkeyType-style statistics including personal bests, improvement metrics, and performance by text length
 
 ### In Development
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
@@ -108,10 +109,13 @@ pytest tests/test_stats_worker.py
 
 ### Viewing Progress History
 1. Click the "View History" button in the main interface
-2. Switch between "Text History" and "Performance Chart" tabs
-3. Text History: View detailed session data in a sortable table
-4. Performance Chart: See visual graphs of WPM and accuracy trends over time
-5. Summary statistics show your overall progress and best performances
+2. Switch between multiple tabs for different views:
+   - **Text History**: Detailed session data in a sortable table
+   - **Overview**: Line charts showing WPM and accuracy trends over time
+   - **Activity**: Recent activity chart (last 30 days)
+   - **By Length**: Performance comparison across different text lengths
+   - **Personal Bests**: Your best performances and improvement metrics
+3. Summary statistics show your overall progress and best performances
 
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands

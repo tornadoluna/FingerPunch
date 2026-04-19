@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QStyle
 import time
 from statsWorker import StatsWorker
 from textGenerator import generate_mixed_text
+from dataManager import DataManager
 
 class ResultsDialog(QDialog):
     def __init__(self, stats, parent=None):
@@ -170,6 +171,7 @@ class TypingPracticeApp(QWidget):
                 background-color: #4CAF50;
             }
         """)
+        self.data_manager = DataManager()
         self.init_ui()
 
         self.stats_worker = StatsWorker(self)
@@ -407,6 +409,28 @@ class TypingPracticeApp(QWidget):
         self.new_text_button.clicked.connect(self.load_new_sample_text)
         button_layout.addWidget(self.new_text_button)
 
+        self.history_button = QPushButton("View History")
+        self.history_button.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.history_button.setIcon(QIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView)))
+        self.history_button.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #8e24aa;
+            }
+            QPushButton:pressed {
+                background-color: #7b1fa2;
+            }
+        """)
+        self.history_button.clicked.connect(self.show_history_dialog)
+        button_layout.addWidget(self.history_button)
+
         button_layout.addStretch()
         control_layout.addLayout(button_layout)
 
@@ -493,6 +517,8 @@ class TypingPracticeApp(QWidget):
 
     def show_results_dialog(self):
         stats = self.stats_worker.get_final_stats()
+        # Save session data
+        self.data_manager.save_session(stats, self.sample_text)
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()
 
@@ -500,6 +526,131 @@ class TypingPracticeApp(QWidget):
             self.reset_practice()
         elif result == 2:  # New Text button
             self.load_new_sample_text()
+
+    def show_history_dialog(self):
+        sessions = self.data_manager.get_all_sessions()
+        if not sessions:
+            self.show_message("No history found", "You have no typing history recorded.")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Typing History")
+        dialog.setModal(True)
+        dialog.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")
+        dialog.resize(800, 500)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("🕒 Typing History")
+        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("color: #9C27B0; margin-bottom: 10px;")
+        layout.addWidget(title)
+
+        # Add summary stats
+        stats = self.data_manager.get_session_stats()
+        if stats['total_sessions'] > 0:
+            summary_text = f"Total Sessions: {stats['total_sessions']} | Best WPM: {stats['best_wpm']} | Best Accuracy: {stats['best_accuracy']}% | Avg WPM: {stats['avg_wpm']} | Avg Accuracy: {stats['avg_accuracy']}%"
+            summary_label = QLabel(summary_text)
+            summary_label.setFont(QFont("Segoe UI", 12))
+            summary_label.setStyleSheet("color: #4CAF50; padding: 10px; background-color: #3c3c3c; border-radius: 5px;")
+            summary_label.setWordWrap(True)
+            layout.addWidget(summary_label)
+
+        history_list = QTextBrowser()
+        history_list.setFont(QFont("Segoe UI", 12))
+        history_list.setStyleSheet("""
+            QTextBrowser {
+                padding: 10px;
+                color: #ffffff;
+                background-color: #3c3c3c;
+                border-radius: 5px;
+                border: none;
+            }
+        """)
+        history_list.setReadOnly(True)
+        history_list.setHtml(self.get_history_html(sessions))
+        layout.addWidget(history_list)
+
+        close_button = QPushButton("Close")
+        close_button.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        close_button.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+        close_button.clicked.connect(dialog.reject)
+        layout.addWidget(close_button, alignment=Qt.AlignCenter)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def get_history_html(self, sessions):
+        from datetime import datetime
+        html = '<style>table {width: 100%; border-collapse: collapse; font-size: 12px;} th, td {padding: 6px; text-align: left; border-bottom: 1px solid #555;} th {background-color: #4CAF50; color: white; font-weight: bold;} tr:nth-child(even) {background-color: #2a2a2a;} tr:hover {background-color: #3e8e41;}</style>'
+        html += '<table>'
+        html += '<tr><th>Date</th><th>Time</th><th>WPM</th><th>Accuracy</th><th>Chars</th><th>Keystrokes</th><th>Efficiency</th></tr>'
+        for session in sessions:
+            # session format: (id, date, wpm, accuracy, time_taken, total_chars, keystrokes, efficiency, text_length, sample_text)
+            date_obj = datetime.fromisoformat(session[1])
+            date_str = date_obj.strftime("%Y-%m-%d")
+            time_str = date_obj.strftime("%H:%M")
+            html += f'<tr><td>{date_str}</td><td>{time_str}</td><td>{session[2]:.1f}</td><td>{session[3]:.1f}%</td><td>{session[5]}</td><td>{session[6]}</td><td>{session[7]:.1f}%</td></tr>'
+        html += '</table>'
+        return html
+
+    def show_message(self, title, message):
+        msg_box = QDialog(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")
+        msg_box.setFixedSize(400, 200)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        msg_label = QLabel(message)
+        msg_label.setFont(QFont("Segoe UI", 12))
+        msg_label.setStyleSheet("color: #cccccc;")
+        msg_label.setWordWrap(True)
+        layout.addWidget(msg_label)
+
+        close_button = QPushButton("Close")
+        close_button.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        close_button.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+        close_button.clicked.connect(msg_box.reject)
+        layout.addWidget(close_button, alignment=Qt.AlignCenter)
+
+        msg_box.setLayout(layout)
+        msg_box.exec()
 
     def closeEvent(self, event):
         self.stats_worker.stop_worker()

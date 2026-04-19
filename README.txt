@@ -40,6 +40,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Comprehensive Testing: 20+ tests with 85%+ coverage
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
+- Performance Charts: Visual graphs showing WPM and accuracy progress over time
 
 ### In Development
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
@@ -53,8 +54,9 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Frontend: PySide6 (Qt6) - Modern, cross-platform GUI
 - Backend: Python 3.12+ - Core application logic
 - Testing: pytest + pytest-cov - Comprehensive test suite
+- Data Visualization: matplotlib - Performance charts and progress tracking
 - Computer Vision: OpenCV + MediaPipe (planned) - Camera feed capture and finger processing
-- Data Storage: SQLite (planned) - Session persistence
+- Data Storage: SQLite - Session persistence
 - Build System: Standard Python packaging
 ## Quick Start
 
@@ -103,6 +105,13 @@ pytest tests/test_stats_worker.py
 - Accuracy: Percentage of correct characters
 - Efficiency: Correct keystrokes / total keystrokes
 - Progress: Real-time completion percentage
+
+### Viewing Progress History
+1. Click the "View History" button in the main interface
+2. Switch between "Text History" and "Performance Chart" tabs
+3. Text History: View detailed session data in a sortable table
+4. Performance Chart: See visual graphs of WPM and accuracy trends over time
+5. Summary statistics show your overall progress and best performances
 
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands

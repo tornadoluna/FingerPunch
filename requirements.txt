@@ -4,4 +4,4 @@ PySide6_Essentials==6.10.2
 shiboken6==6.10.2
 pytest==9.0.3
 pytest-cov==5.0.0
-
+matplotlib==3.8.0

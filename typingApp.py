@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser, QDialog, QDialogButtonBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser, QDialog, QDialogButtonBox, QTabWidget
 from PySide6.QtCore import QTimer, Signal, Qt
 from PySide6.QtGui import QFont, QIcon, QTextCursor
 from PySide6.QtWidgets import QStyle
@@ -6,6 +6,15 @@ import time
 from statsWorker import StatsWorker
 from textGenerator import generate_mixed_text
 from dataManager import DataManager
+
+# Set up matplotlib for Qt integration
+import matplotlib
+matplotlib.use('QtAgg')
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.dates as mdates
+from datetime import datetime
 
 class ResultsDialog(QDialog):
     def __init__(self, stats, parent=None):
@@ -559,6 +568,35 @@ class TypingPracticeApp(QWidget):
             summary_label.setWordWrap(True)
             layout.addWidget(summary_label)
 
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+            }
+            QTabBar::tab {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                padding: 10px;
+                border: 2px solid #555;
+                border-bottom: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+            }
+            QTabBar::tab:selected {
+                background-color: #4CAF50;
+                color: white;
+            }
+            QTabBar::tab:hover {
+                background-color: #45a049;
+            }
+        """)
+
+        # Text History Tab
+        text_history_widget = QWidget()
+        text_history_layout = QVBoxLayout()
+        text_history_layout.setSpacing(10)
+        text_history_layout.setContentsMargins(10, 10, 10, 10)
+
         history_list = QTextBrowser()
         history_list.setFont(QFont("Segoe UI", 12))
         history_list.setStyleSheet("""
@@ -572,7 +610,27 @@ class TypingPracticeApp(QWidget):
         """)
         history_list.setReadOnly(True)
         history_list.setHtml(self.get_history_html(sessions))
-        layout.addWidget(history_list)
+        text_history_layout.addWidget(history_list)
+
+        text_history_widget.setLayout(text_history_layout)
+        tab_widget.addTab(text_history_widget, "Text History")
+
+        # Performance Chart Tab
+        chart_widget = QWidget()
+        chart_layout = QVBoxLayout()
+        chart_layout.setSpacing(10)
+        chart_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.canvas = FigureCanvas(Figure(figsize=(8, 6)))
+        chart_layout.addWidget(self.canvas)
+
+        # Initialize the chart
+        self.update_history_chart(sessions)
+
+        chart_widget.setLayout(chart_layout)
+        tab_widget.addTab(chart_widget, "Performance Chart")
+
+        layout.addWidget(tab_widget)
 
         close_button = QPushButton("Close")
         close_button.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
@@ -597,6 +655,35 @@ class TypingPracticeApp(QWidget):
 
         dialog.setLayout(layout)
         dialog.exec()
+
+    def update_history_chart(self, sessions):
+        if not sessions:
+            return
+
+        # Extract data for the chart
+        dates = [datetime.fromisoformat(session[1]) for session in sessions]
+        wpms = [session[2] for session in sessions]
+        accuracies = [session[3] for session in sessions]
+
+        # Create the plot
+        ax = self.canvas.figure.add_subplot(111)
+        ax.clear()
+        ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
+        ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
+
+        # Format the date axis
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
+        ax.xaxis.set_major_locator(mdates.DayLocator())
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
+
+        # Labels and title
+        ax.set_xlabel("Date")
+        ax.set_ylabel("WPM / Accuracy")
+        ax.set_title("Typing Performance Over Time")
+        ax.legend()
+
+        # Refresh the canvas
+        self.canvas.draw()
 
     def get_history_html(self, sessions):
         from datetime import datetime

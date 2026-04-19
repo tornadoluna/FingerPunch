@@ -37,6 +37,47 @@ class DataManager:
                 )
             ''')
 
+            # Create goals table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS goals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT NOT NULL, -- 'wpm', 'accuracy', 'sessions'
+                    target_value REAL NOT NULL,
+                    current_value REAL DEFAULT 0,
+                    created_date TEXT NOT NULL,
+                    target_date TEXT,
+                    achieved BOOLEAN DEFAULT FALSE,
+                    achieved_date TEXT
+                )
+            ''')
+
+            # Create achievements table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    icon TEXT,
+                    category TEXT,
+                    requirement_type TEXT,
+                    requirement_value REAL,
+                    unlocked BOOLEAN DEFAULT FALSE,
+                    unlocked_date TEXT,
+                    progress REAL DEFAULT 0
+                )
+            ''')
+
+            # Create streaks table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS streaks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    sessions_count INTEGER DEFAULT 0,
+                    current_streak INTEGER DEFAULT 0,
+                    longest_streak INTEGER DEFAULT 0
+                )
+            ''')
+
             conn.commit()
 
     def save_session(self, stats, sample_text=""):
@@ -330,3 +371,261 @@ class DataManager:
             })
 
         return trend_data
+
+    # ===== GOALS MANAGEMENT =====
+
+    def create_goal(self, goal_type, target_value, target_date=None):
+        """Create a new goal."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO goals (type, target_value, created_date, target_date)
+                VALUES (?, ?, ?, ?)
+            ''', (goal_type, target_value, datetime.now().isoformat(), target_date))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_goals(self):
+        """Get all goals."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM goals ORDER BY created_date DESC')
+            return cursor.fetchall()
+
+    def update_goal_progress(self, goal_id, current_value):
+        """Update goal progress and check if achieved."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT target_value, achieved FROM goals WHERE id = ?', (goal_id,))
+            result = cursor.fetchone()
+
+            if result:
+                target_value, achieved = result
+                if not achieved and current_value >= target_value:
+                    cursor.execute('''
+                        UPDATE goals 
+                        SET current_value = ?, achieved = TRUE, achieved_date = ?
+                        WHERE id = ?
+                    ''', (current_value, datetime.now().isoformat(), goal_id))
+                else:
+                    cursor.execute('UPDATE goals SET current_value = ? WHERE id = ?', (current_value, goal_id))
+                conn.commit()
+
+    def delete_goal(self, goal_id):
+        """Delete a goal."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM goals WHERE id = ?', (goal_id,))
+            conn.commit()
+
+    # ===== ACHIEVEMENTS SYSTEM =====
+
+    def init_achievements(self):
+        """Initialize default achievements."""
+        achievements = [
+            # Beginner achievements
+            ("First Steps", "Complete your first typing session", "🎯", "beginner", "sessions", 1),
+            ("Getting Started", "Complete 10 typing sessions", "🚀", "beginner", "sessions", 10),
+            ("Century Club", "Reach 100 WPM", "💯", "speed", "wpm", 100),
+            ("Accuracy Master", "Achieve 98% accuracy", "🎯", "accuracy", "accuracy", 98),
+
+            # Speed achievements
+            ("Speed Demon", "Reach 120 WPM", "⚡", "speed", "wpm", 120),
+            ("Lightning Fast", "Reach 150 WPM", "⚡", "speed", "wpm", 150),
+            ("Typing God", "Reach 200 WPM", "👑", "speed", "wpm", 200),
+
+            # Consistency achievements
+            ("Consistent", "Complete sessions for 7 consecutive days", "🔥", "consistency", "streak", 7),
+            ("Dedicated", "Complete sessions for 30 consecutive days", "🔥", "consistency", "streak", 30),
+            ("Unstoppable", "Complete sessions for 100 consecutive days", "🔥", "consistency", "streak", 100),
+
+            # Volume achievements
+            ("Century Sessions", "Complete 100 typing sessions", "📊", "volume", "sessions", 100),
+            ("Half Thousand", "Complete 500 typing sessions", "📊", "volume", "sessions", 500),
+            ("Thousand Club", "Complete 1000 typing sessions", "📊", "volume", "sessions", 1000),
+
+            # Time achievements
+            ("Hour of Practice", "Spend 1 hour total practicing", "⏰", "time", "total_time", 3600),
+            ("Practice Veteran", "Spend 10 hours total practicing", "⏰", "time", "total_time", 36000),
+            ("Time Master", "Spend 100 hours total practicing", "⏰", "time", "total_time", 360000),
+        ]
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            for name, desc, icon, category, req_type, req_value in achievements:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO achievements 
+                    (name, description, icon, category, requirement_type, requirement_value)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (name, desc, icon, category, req_type, req_value))
+            conn.commit()
+
+    def check_achievements(self):
+        """Check and update achievement progress."""
+        stats = self.get_session_stats()
+        bests = self.get_personal_bests()
+        streaks = self.get_streak_info()
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Get all achievements
+            cursor.execute('SELECT * FROM achievements')
+            achievements = cursor.fetchall()
+
+            for achievement in achievements:
+                ach_id, name, desc, icon, category, req_type, req_value, unlocked, unlocked_date, progress = achievement
+
+                if unlocked:
+                    continue
+
+                # Check requirement based on type
+                achieved = False
+                new_progress = 0
+
+                if req_type == "sessions":
+                    new_progress = stats['total_sessions']
+                    achieved = new_progress >= req_value
+                elif req_type == "wpm":
+                    new_progress = bests['best_wpm']['value']
+                    achieved = new_progress >= req_value
+                elif req_type == "accuracy":
+                    new_progress = bests['best_accuracy']['value']
+                    achieved = new_progress >= req_value
+                elif req_type == "streak":
+                    new_progress = streaks['longest_streak']
+                    achieved = new_progress >= req_value
+                elif req_type == "total_time":
+                    new_progress = stats['total_time']
+                    achieved = new_progress >= req_value
+
+                # Update achievement
+                if achieved and not unlocked:
+                    cursor.execute('''
+                        UPDATE achievements 
+                        SET unlocked = TRUE, unlocked_date = ?, progress = ?
+                        WHERE id = ?
+                    ''', (datetime.now().isoformat(), new_progress, ach_id))
+                elif new_progress > progress:
+                    cursor.execute('UPDATE achievements SET progress = ? WHERE id = ?', (new_progress, ach_id))
+
+            conn.commit()
+
+    def get_achievements(self):
+        """Get all achievements with progress."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM achievements ORDER BY category, requirement_value')
+            return cursor.fetchall()
+
+    # ===== STREAK TRACKING =====
+
+    def update_streaks(self):
+        """Update daily streak information."""
+        today = datetime.now().date().isoformat()
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Get today's sessions count
+            cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (today,))
+            today_sessions = cursor.fetchone()[0]
+
+            # Get yesterday's date
+            yesterday = (datetime.now().date().replace(day=datetime.now().day-1)).isoformat()
+            cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (yesterday,))
+            yesterday_sessions = cursor.fetchone()[0]
+
+            # Get current streak info
+            cursor.execute('SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC LIMIT 1')
+            streak_result = cursor.fetchone()
+
+            current_streak = 1 if today_sessions > 0 else 0
+            longest_streak = current_streak
+
+            if streak_result:
+                prev_current, prev_longest = streak_result
+                if yesterday_sessions > 0 and today_sessions > 0:
+                    current_streak = prev_current + 1
+                elif today_sessions == 0:
+                    current_streak = 0
+                longest_streak = max(prev_longest, current_streak)
+
+            # Insert/update today's streak
+            cursor.execute('''
+                INSERT OR REPLACE INTO streaks (date, sessions_count, current_streak, longest_streak)
+                VALUES (?, ?, ?, ?)
+            ''', (today, today_sessions, current_streak, longest_streak))
+
+            conn.commit()
+
+    def get_streak_info(self):
+        """Get current streak information."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC LIMIT 1')
+            result = cursor.fetchone()
+
+            if result:
+                current_streak, longest_streak = result
+                return {
+                    'current_streak': current_streak,
+                    'longest_streak': longest_streak
+                }
+            else:
+                return {
+                    'current_streak': 0,
+                    'longest_streak': 0
+                }
+
+    def get_streak_history(self, days=30):
+        """Get streak history for the last N days."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT date, sessions_count, current_streak 
+                FROM streaks 
+                WHERE date >= date('now', '-{} days')
+                ORDER BY date
+            '''.format(days))
+            return cursor.fetchall()
+
+    # ===== PROGRESS INSIGHTS =====
+
+    def get_progress_insights(self):
+        """Generate comprehensive progress insights."""
+        stats = self.get_session_stats()
+        bests = self.get_personal_bests()
+        improvements = self.get_improvement_metrics()
+        streaks = self.get_streak_info()
+
+        insights = {
+            'stats': stats,
+            'bests': bests,
+            'improvements': improvements,
+            'streaks': streaks,
+            'insights': []
+        }
+
+        # Generate insights based on data
+        if stats['total_sessions'] > 0:
+            insights['insights'].append(f"You've completed {stats['total_sessions']} typing sessions!")
+
+            if improvements['wpm_improvement'] > 0:
+                insights['insights'].append(f"Your WPM has improved by {improvements['wpm_improvement']} over time!")
+            elif improvements['wpm_improvement'] < 0:
+                insights['insights'].append(f"Your WPM has decreased by {abs(improvements['wpm_improvement'])}. Keep practicing!")
+
+            if bests['best_wpm']['value'] >= 100:
+                insights['insights'].append("🏆 You're in the Century Club (100+ WPM)!")
+
+            if improvements['consistency_score'] > 80:
+                insights['insights'].append("🎯 You're very consistent in your typing speed!")
+
+            if streaks['current_streak'] >= 7:
+                insights['insights'].append(f"🔥 You're on a {streaks['current_streak']}-day streak!")
+
+            if streaks['longest_streak'] >= 30:
+                insights['insights'].append(f"💪 Your longest streak is {streaks['longest_streak']} days!")
+
+        return insights

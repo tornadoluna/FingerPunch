@@ -181,6 +181,8 @@ class TypingPracticeApp(QWidget):
             }
         """)
         self.data_manager = DataManager()
+        # Initialize achievements system
+        self.data_manager.init_achievements()
         self.init_ui()
 
         self.stats_worker = StatsWorker(self)
@@ -528,6 +530,11 @@ class TypingPracticeApp(QWidget):
         stats = self.stats_worker.get_final_stats()
         # Save session data
         self.data_manager.save_session(stats, self.sample_text)
+
+        # Update streaks and check achievements
+        self.data_manager.update_streaks()
+        self.data_manager.check_achievements()
+
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()
 
@@ -576,11 +583,13 @@ class TypingPracticeApp(QWidget):
             QTabBar::tab {
                 background-color: #3c3c3c;
                 color: #ffffff;
-                padding: 10px;
+                padding: 12px 20px;
                 border: 2px solid #555;
                 border-bottom: none;
                 border-top-left-radius: 8px;
                 border-top-right-radius: 8px;
+                font-size: 13px;
+                font-weight: bold;
             }
             QTabBar::tab:selected {
                 background-color: #4CAF50;
@@ -591,11 +600,11 @@ class TypingPracticeApp(QWidget):
             }
         """)
 
-        # Text History Tab
-        text_history_widget = QWidget()
-        text_history_layout = QVBoxLayout()
-        text_history_layout.setSpacing(10)
-        text_history_layout.setContentsMargins(10, 10, 10, 10)
+        # ===== SESSIONS TAB =====
+        sessions_widget = QWidget()
+        sessions_layout = QVBoxLayout()
+        sessions_layout.setSpacing(10)
+        sessions_layout.setContentsMargins(10, 10, 10, 10)
 
         history_list = QTextBrowser()
         history_list.setFont(QFont("Segoe UI", 12))
@@ -610,63 +619,162 @@ class TypingPracticeApp(QWidget):
         """)
         history_list.setReadOnly(True)
         history_list.setHtml(self.get_history_html(sessions))
-        text_history_layout.addWidget(history_list)
+        sessions_layout.addWidget(history_list)
 
-        text_history_widget.setLayout(text_history_layout)
-        tab_widget.addTab(text_history_widget, "Text History")
+        sessions_widget.setLayout(sessions_layout)
+        tab_widget.addTab(sessions_widget, "📊 Sessions")
 
-        # Performance Overview Tab
-        overview_widget = QWidget()
-        overview_layout = QVBoxLayout()
-        overview_layout.setSpacing(10)
-        overview_layout.setContentsMargins(10, 10, 10, 10)
+        # ===== ANALYTICS TAB =====
+        analytics_widget = QWidget()
+        analytics_layout = QVBoxLayout()
+        analytics_layout.setSpacing(15)
+        analytics_layout.setContentsMargins(15, 15, 15, 15)
 
-        self.overview_canvas = FigureCanvas(Figure(figsize=(10, 8)))
-        overview_layout.addWidget(self.overview_canvas)
+        # Chart type selector
+        chart_selector_layout = QHBoxLayout()
+        chart_selector_layout.addWidget(QLabel("Chart Type:"))
 
-        self.update_overview_chart(sessions)
+        self.chart_combo = QComboBox()
+        self.chart_combo.addItems(["Performance Overview", "Recent Activity", "Performance by Length"])
+        self.chart_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 2px solid #555;
+                border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+                min-width: 200px;
+            }
+        """)
+        self.chart_combo.currentTextChanged.connect(self.update_analytics_chart)
+        chart_selector_layout.addWidget(self.chart_combo)
+        chart_selector_layout.addStretch()
+        analytics_layout.addLayout(chart_selector_layout)
 
-        overview_widget.setLayout(overview_layout)
-        tab_widget.addTab(overview_widget, "Overview")
+        # Chart display area
+        self.analytics_canvas = FigureCanvas(Figure(figsize=(12, 7)))
+        analytics_layout.addWidget(self.analytics_canvas)
 
-        # Activity Chart Tab
-        activity_widget = QWidget()
-        activity_layout = QVBoxLayout()
-        activity_layout.setSpacing(10)
-        activity_layout.setContentsMargins(10, 10, 10, 10)
+        # Initialize with overview chart
+        self.update_analytics_chart("Performance Overview")
 
-        self.activity_canvas = FigureCanvas(Figure(figsize=(10, 6)))
-        activity_layout.addWidget(self.activity_canvas)
+        analytics_widget.setLayout(analytics_layout)
+        tab_widget.addTab(analytics_widget, "📈 Analytics")
 
-        self.update_activity_chart()
+        # ===== PROGRESS TAB =====
+        progress_widget = QWidget()
+        progress_layout = QVBoxLayout()
+        progress_layout.setSpacing(20)
+        progress_layout.setContentsMargins(20, 20, 20, 20)
 
-        activity_widget.setLayout(activity_layout)
-        tab_widget.addTab(activity_widget, "Activity")
-
-        # Performance by Length Tab
-        length_widget = QWidget()
-        length_layout = QVBoxLayout()
-        length_layout.setSpacing(10)
-        length_layout.setContentsMargins(10, 10, 10, 10)
-
-        self.length_canvas = FigureCanvas(Figure(figsize=(10, 6)))
-        length_layout.addWidget(self.length_canvas)
-
-        self.update_length_chart()
-
-        length_widget.setLayout(length_layout)
-        tab_widget.addTab(length_widget, "By Length")
-
-        # Personal Bests Tab
-        bests_widget = QWidget()
+        # Personal Bests Section
+        bests_group = QGroupBox("🏆 Personal Bests")
+        bests_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #4CAF50;
+                border-radius: 8px;
+                margin-top: 1ex;
+                padding-top: 10px;
+                background-color: #2a2a2a;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                color: #4CAF50;
+                font-size: 14px;
+            }
+        """)
         bests_layout = QVBoxLayout()
-        bests_layout.setSpacing(15)
-        bests_layout.setContentsMargins(20, 20, 20, 20)
-
+        bests_layout.setSpacing(10)
         self.create_personal_bests_display(bests_layout)
+        bests_group.setLayout(bests_layout)
+        progress_layout.addWidget(bests_group)
 
-        bests_widget.setLayout(bests_layout)
-        tab_widget.addTab(bests_widget, "Personal Bests")
+        # Achievements and Streaks in horizontal layout
+        achievements_streaks_layout = QHBoxLayout()
+        achievements_streaks_layout.setSpacing(15)
+
+        # Achievements Section
+        achievements_group = QGroupBox("🎯 Achievements")
+        achievements_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #9C27B0;
+                border-radius: 8px;
+                margin-top: 1ex;
+                padding-top: 10px;
+                background-color: #2a2a2a;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                color: #9C27B0;
+                font-size: 14px;
+            }
+        """)
+        achievements_layout = QVBoxLayout()
+        achievements_layout.setSpacing(10)
+        self.create_achievements_display(achievements_layout)
+        achievements_group.setLayout(achievements_layout)
+        achievements_streaks_layout.addWidget(achievements_group)
+
+        # Streaks Section
+        streaks_group = QGroupBox("🔥 Streaks")
+        streaks_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #FF9800;
+                border-radius: 8px;
+                margin-top: 1ex;
+                padding-top: 10px;
+                background-color: #2a2a2a;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                color: #FF9800;
+                font-size: 14px;
+            }
+        """)
+        streaks_layout = QVBoxLayout()
+        streaks_layout.setSpacing(10)
+        self.create_streaks_display(streaks_layout)
+        streaks_group.setLayout(streaks_layout)
+        achievements_streaks_layout.addWidget(streaks_group)
+
+        progress_layout.addLayout(achievements_streaks_layout)
+
+        # Goals Section
+        goals_group = QGroupBox("🎯 Goals")
+        goals_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #2196F3;
+                border-radius: 8px;
+                margin-top: 1ex;
+                padding-top: 10px;
+                background-color: #2a2a2a;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                color: #2196F3;
+                font-size: 14px;
+            }
+        """)
+        goals_layout = QVBoxLayout()
+        goals_layout.setSpacing(10)
+        self.create_goals_display(goals_layout)
+        goals_group.setLayout(goals_layout)
+        progress_layout.addWidget(goals_group)
+
+        progress_widget.setLayout(progress_layout)
+        tab_widget.addTab(progress_widget, "🚀 Progress")
 
         layout.addWidget(tab_widget)
 
@@ -694,123 +802,123 @@ class TypingPracticeApp(QWidget):
         dialog.setLayout(layout)
         dialog.exec()
 
-    def update_overview_chart(self, sessions):
-        if not sessions:
-            return
-
-        # Extract data for the chart
-        dates = [datetime.fromisoformat(session[1]) for session in sessions]
-        wpms = [session[2] for session in sessions]
-        accuracies = [session[3] for session in sessions]
-
-        # Create the plot
-        ax = self.overview_canvas.figure.add_subplot(111)
-        ax.clear()
-        ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
-        ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
-
-        # Format the date axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
-        ax.xaxis.set_major_locator(mdates.DayLocator())
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
-
-        # Labels and title
-        ax.set_xlabel("Date")
-        ax.set_ylabel("WPM / Accuracy")
-        ax.set_title("Typing Performance Over Time")
-        ax.legend()
-
-        # Refresh the canvas
-        self.overview_canvas.draw()
-
-    def update_activity_chart(self):
-        # Get the current session data
-        sessions = self.data_manager.get_all_sessions()
-        if not sessions:
-            return
-
-        # Extract the last 30 days' data
-        from datetime import timedelta
-        cutoff_date = datetime.now() - timedelta(days=30)
-        recent_sessions = [session for session in sessions if datetime.fromisoformat(session[1]) >= cutoff_date]
-
-        if not recent_sessions:
-            return
-
-        dates = [datetime.fromisoformat(session[1]) for session in recent_sessions]
-        wpms = [session[2] for session in recent_sessions]
-        accuracies = [session[3] for session in recent_sessions]
-
-        # Create the plot
-        ax = self.activity_canvas.figure.add_subplot(111)
-        ax.clear()
-        ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
-        ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
-
-        # Format the date axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
-
-        # Labels and title
-        ax.set_xlabel("Date")
-        ax.set_ylabel("WPM / Accuracy")
-        ax.set_title("Typing Activity - Last 30 Days")
-        ax.legend()
-
-        # Refresh the canvas
-        self.activity_canvas.draw()
-
-    def update_length_chart(self):
-        # Get performance by length data
-        length_data = self.data_manager.get_performance_by_length()
-        if not length_data:
-            return
-
-        # Extract data
-        lengths = [row[0] for row in length_data]
-        avg_wpms = [row[1] for row in length_data]
-        best_wpms = [row[2] for row in length_data]
-        avg_accuracies = [row[3] for row in length_data]
-        best_accuracies = [row[4] for row in length_data]
-
+    def update_analytics_chart(self, chart_type):
         # Clear the canvas
-        self.length_canvas.figure.clear()
+        self.analytics_canvas.figure.clear()
 
-        # Create subplots
-        ax1 = self.length_canvas.figure.add_subplot(111)
+        if chart_type == "Performance Overview":
+            # Get all sessions
+            sessions = self.data_manager.get_all_sessions()
+            if not sessions:
+                return
 
-        x = list(range(len(lengths)))
-        width = 0.35
+            # Extract data for the chart
+            dates = [datetime.fromisoformat(session[1]) for session in sessions]
+            wpms = [session[2] for session in sessions]
+            accuracies = [session[3] for session in sessions]
 
-        # Bar chart for WPM
-        ax1.bar([i - width/2 for i in x], avg_wpms, width, label='Avg WPM', color='#4CAF50', alpha=0.7)
-        ax1.bar([i + width/2 for i in x], best_wpms, width, label='Best WPM', color='#66BB6A', alpha=0.7)
-        ax1.set_xlabel('Text Length (words)')
-        ax1.set_ylabel('WPM', color='#4CAF50')
-        ax1.tick_params(axis='y', labelcolor='#4CAF50')
+            # Create the plot
+            ax = self.analytics_canvas.figure.add_subplot(111)
+            ax.clear()
+            ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
+            ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
 
-        # Line chart for accuracy on secondary axis
-        ax2 = ax1.twinx()
-        ax2.plot(x, avg_accuracies, 'o-', label='Avg Accuracy', color='#2196F3', linewidth=2, markersize=6)
-        ax2.plot(x, best_accuracies, 's-', label='Best Accuracy', color='#42A5F5', linewidth=2, markersize=6)
-        ax2.set_ylabel('Accuracy (%)', color='#2196F3')
-        ax2.tick_params(axis='y', labelcolor='#2196F3')
+            # Format the date axis
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
+            ax.xaxis.set_major_locator(mdates.DayLocator())
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
 
-        # X-axis labels
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(lengths)
+            # Labels and title
+            ax.set_xlabel("Date")
+            ax.set_ylabel("WPM / Accuracy")
+            ax.set_title("Typing Performance Over Time")
+            ax.legend()
 
-        # Title
-        ax1.set_title('Typing Performance by Text Length')
+        elif chart_type == "Recent Activity":
+            # Get the current session data
+            sessions = self.data_manager.get_all_sessions()
+            if not sessions:
+                return
 
-        # Combine legends
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+            # Extract the last 30 days' data
+            from datetime import timedelta
+            cutoff_date = datetime.now() - timedelta(days=30)
+            recent_sessions = [session for session in sessions if datetime.fromisoformat(session[1]) >= cutoff_date]
+
+            if not recent_sessions:
+                return
+
+            dates = [datetime.fromisoformat(session[1]) for session in recent_sessions]
+            wpms = [session[2] for session in recent_sessions]
+            accuracies = [session[3] for session in recent_sessions]
+
+            # Create the plot
+            ax = self.analytics_canvas.figure.add_subplot(111)
+            ax.clear()
+            ax.plot(dates, wpms, label="WPM", color="#4CAF50", marker="o")
+            ax.plot(dates, accuracies, label="Accuracy", color="#2196F3", marker="o")
+
+            # Format the date axis
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
+
+            # Labels and title
+            ax.set_xlabel("Date")
+            ax.set_ylabel("WPM / Accuracy")
+            ax.set_title("Typing Activity - Last 30 Days")
+            ax.legend()
+
+        elif chart_type == "Performance by Length":
+            # Get performance by length data
+            length_data = self.data_manager.get_performance_by_length()
+            if not length_data:
+                return
+
+            # Extract data
+            lengths = [row[0] for row in length_data]
+            avg_wpms = [row[1] for row in length_data]
+            best_wpms = [row[2] for row in length_data]
+            avg_accuracies = [row[3] for row in length_data]
+            best_accuracies = [row[4] for row in length_data]
+
+            # Clear the canvas
+            self.length_canvas.figure.clear()
+
+            # Create subplots
+            ax1 = self.length_canvas.figure.add_subplot(111)
+
+            x = list(range(len(lengths)))
+            width = 0.35
+
+            # Bar chart for WPM
+            ax1.bar([i - width/2 for i in x], avg_wpms, width, label='Avg WPM', color='#4CAF50', alpha=0.7)
+            ax1.bar([i + width/2 for i in x], best_wpms, width, label='Best WPM', color='#66BB6A', alpha=0.7)
+            ax1.set_xlabel('Text Length (words)')
+            ax1.set_ylabel('WPM', color='#4CAF50')
+            ax1.tick_params(axis='y', labelcolor='#4CAF50')
+
+            # Line chart for accuracy on secondary axis
+            ax2 = ax1.twinx()
+            ax2.plot(x, avg_accuracies, 'o-', label='Avg Accuracy', color='#2196F3', linewidth=2, markersize=6)
+            ax2.plot(x, best_accuracies, 's-', label='Best Accuracy', color='#42A5F5', linewidth=2, markersize=6)
+            ax2.set_ylabel('Accuracy (%)', color='#2196F3')
+            ax2.tick_params(axis='y', labelcolor='#2196F3')
+
+            # X-axis labels
+            ax1.set_xticks(x)
+            ax1.set_xticklabels(lengths)
+
+            # Title
+            ax1.set_title('Typing Performance by Text Length')
+
+            # Combine legends
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
 
         # Refresh the canvas
-        self.length_canvas.draw()
+        self.analytics_canvas.draw()
 
     def create_personal_bests_display(self, layout):
         # Get personal bests
@@ -904,6 +1012,283 @@ class TypingPracticeApp(QWidget):
             grid.addWidget(consistency_label, row, 0, 1, 3)
 
         layout.addLayout(grid)
+
+    def create_goals_display(self, layout):
+        # Get goals
+        goals = self.data_manager.get_goals()
+        if not goals:
+            label = QLabel("No goals set yet. Create some goals to track your progress.")
+            label.setFont(QFont("Segoe UI", 12))
+            label.setStyleSheet("color: #cccccc;")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            return
+
+        # Create a list view for goals
+        from PySide6.QtWidgets import QListView, QAbstractItemView
+        list_view = QListView()
+        list_view.setFont(QFont("Segoe UI", 12))
+        list_view.setStyleSheet("""
+            QListView {
+                border: 2px solid #555;
+                border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+            }
+            QListView::item {
+                padding: 10px;
+                border-bottom: 1px solid #555;
+            }
+            QListView::item:selected {
+                background-color: #4CAF50;
+                color: white;
+            }
+        """)
+        list_view.setSelectionMode(QAbstractItemView.SingleSelection)
+        list_view.setSpacing(5)
+
+        # Set model for list view
+        from PySide6.QtGui import QStandardItemModel, QStandardItem
+        model = QStandardItemModel()
+        for goal in goals:
+            goal_id, goal_type, target_value, current_value, created_date, target_date, achieved, achieved_date = goal
+            status = "✅ Achieved" if achieved else f"📊 {current_value}/{target_value}"
+            item_text = f"{goal_type.title()} Goal: {status}"
+            item = QStandardItem(item_text)
+            item.setData(goal, role=Qt.UserRole)
+            model.appendRow(item)
+        list_view.setModel(model)
+
+        # Connect signal for item selection
+        list_view.selectionModel().selectionChanged.connect(lambda: self.on_goal_selected(list_view, model))
+
+        layout.addWidget(list_view)
+
+        # Goal details
+        self.goal_details = QTextBrowser()
+        self.goal_details.setFont(QFont("Segoe UI", 12))
+        self.goal_details.setStyleSheet("""
+            QTextBrowser {
+                padding: 10px;
+                color: #ffffff;
+                background-color: #3c3c3c;
+                border-radius: 5px;
+                border: none;
+            }
+        """)
+        self.goal_details.setOpenExternalLinks(True)
+        layout.addWidget(self.goal_details)
+
+        # Load first goal details by default if goals exist
+        if goals:
+            self.load_goal_details(goals[0])
+
+    def on_goal_selected(self, list_view, model):
+        selected = list_view.selectedIndexes()
+        if not selected:
+            return
+        index = selected[0].row()
+        goal = model.item(index).data(Qt.UserRole)
+        self.load_goal_details(goal)
+
+    def load_goal_details(self, goal):
+        goal_id, goal_type, target_value, current_value, created_date, target_date, achieved, achieved_date = goal
+        status = "✅ Achieved" if achieved else f"📊 In Progress ({current_value}/{target_value})"
+
+        html = f"""
+        <style>
+        .title {{
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }}
+        .subtitle {{
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
+        }}
+        .text {{
+            font-size: 12px;
+            color: #cccccc;
+        }}
+        </style>
+        <div class="title">{goal_type.title()} Goal</div>
+        <div class="subtitle">Target: {target_value}</div>
+        <div class="subtitle">Current: {current_value}</div>
+        <div class="subtitle">Status: {status}</div>
+        <div class="text">Created: {created_date[:10]}</div>
+        """
+        if target_date:
+            html += f'<div class="text">Target Date: {target_date[:10]}</div>'
+        if achieved and achieved_date:
+            html += f'<div class="text">Achieved: {achieved_date[:10]}</div>'
+
+        self.goal_details.setHtml(html)
+
+    def create_achievements_display(self, layout):
+        # Get achievements
+        achievements = self.data_manager.get_achievements()
+        if not achievements:
+            label = QLabel("No achievements earned yet. Complete sessions to unlock achievements.")
+            label.setFont(QFont("Segoe UI", 12))
+            label.setStyleSheet("color: #cccccc;")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            return
+
+        # Create a list view for achievements
+        from PySide6.QtWidgets import QListView, QAbstractItemView
+        list_view = QListView()
+        list_view.setFont(QFont("Segoe UI", 12))
+        list_view.setStyleSheet("""
+            QListView {
+                border: 2px solid #555;
+                border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+            }
+            QListView::item {
+                padding: 10px;
+                border-bottom: 1px solid #555;
+            }
+            QListView::item:selected {
+                background-color: #4CAF50;
+                color: white;
+            }
+        """)
+        list_view.setSelectionMode(QAbstractItemView.SingleSelection)
+        list_view.setSpacing(5)
+
+        # Set model for list view
+        from PySide6.QtGui import QStandardItemModel, QStandardItem
+        model = QStandardItemModel()
+        for achievement in achievements:
+            ach_id, name, desc, icon, category, req_type, req_value, unlocked, unlocked_date, progress = achievement
+            status_icon = icon if unlocked else "🔒"
+            item_text = f"{status_icon} {name}"
+            item = QStandardItem(item_text)
+            item.setData(achievement, role=Qt.UserRole)
+            model.appendRow(item)
+        list_view.setModel(model)
+
+        # Connect signal for item selection
+        list_view.selectionModel().selectionChanged.connect(lambda: self.on_achievement_selected(list_view, model))
+
+        layout.addWidget(list_view)
+
+        # Achievement details
+        self.achievement_details = QTextBrowser()
+        self.achievement_details.setFont(QFont("Segoe UI", 12))
+        self.achievement_details.setStyleSheet("""
+            QTextBrowser {
+                padding: 10px;
+                color: #ffffff;
+                background-color: #3c3c3c;
+                border-radius: 5px;
+                border: none;
+            }
+        """)
+        self.achievement_details.setOpenExternalLinks(True)
+        layout.addWidget(self.achievement_details)
+
+        # Load first achievement details by default if achievements exist
+        if achievements:
+            self.load_achievement_details(achievements[0])
+
+    def on_achievement_selected(self, list_view, model):
+        selected = list_view.selectedIndexes()
+        if not selected:
+            return
+        index = selected[0].row()
+        achievement = model.item(index).data(Qt.UserRole)
+        self.load_achievement_details(achievement)
+
+    def load_achievement_details(self, achievement):
+        ach_id, name, desc, icon, category, req_type, req_value, unlocked, unlocked_date, progress = achievement
+
+        status = "✅ Unlocked" if unlocked else f"🔒 Locked ({progress}/{req_value})"
+        unlock_date = f"Unlocked: {unlocked_date[:10]}" if unlocked and unlocked_date else ""
+
+        html = f"""
+        <style>
+        .title {{
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }}
+        .subtitle {{
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
+        }}
+        .text {{
+            font-size: 12px;
+            color: #cccccc;
+        }}
+        </style>
+        <div class="title">{icon} {name}</div>
+        <div class="subtitle">Category: {category.title()}</div>
+        <div class="subtitle">Status: {status}</div>
+        <div class="text">{desc}</div>
+        """
+        if unlock_date:
+            html += f'<div class="text">{unlock_date}</div>'
+
+        self.achievement_details.setHtml(html)
+
+    def create_streaks_display(self, layout):
+        # Get streak info
+        streak_info = self.data_manager.get_streak_info()
+        if not streak_info:
+            label = QLabel("No streaks recorded yet. Complete sessions to build your streak.")
+            label.setFont(QFont("Segoe UI", 12))
+            label.setStyleSheet("color: #cccccc;")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            return
+
+        # Display current streak info
+        current_streak_label = QLabel(f"🔥 Current Streak: {streak_info['current_streak']} days")
+        current_streak_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        current_streak_label.setStyleSheet("color: #4CAF50; margin-bottom: 10px;")
+        layout.addWidget(current_streak_label)
+
+        longest_streak_label = QLabel(f"🏆 Longest Streak: {streak_info['longest_streak']} days")
+        longest_streak_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        longest_streak_label.setStyleSheet("color: #2196F3; margin-bottom: 20px;")
+        layout.addWidget(longest_streak_label)
+
+        # Get streak history
+        streak_history = self.data_manager.get_streak_history(14)  # Last 14 days
+
+        if streak_history:
+            # Create a simple text display of recent streak history
+            history_text = "Recent Streak History:\n\n"
+            for streak in streak_history[-7:]:  # Show last 7 days
+                date, sessions_count, current_streak = streak
+                history_text += f"{date}: {sessions_count} sessions (streak: {current_streak})\n"
+
+            history_browser = QTextBrowser()
+            history_browser.setFont(QFont("Segoe UI", 12))
+            history_browser.setStyleSheet("""
+                QTextBrowser {
+                    padding: 10px;
+                    color: #ffffff;
+                    background-color: #3c3c3c;
+                    border-radius: 5px;
+                    border: none;
+                }
+            """)
+            history_browser.setPlainText(history_text)
+            history_browser.setMaximumHeight(200)
+            layout.addWidget(history_browser)
+
+        # Motivation text
+        motivation_label = QLabel("💪 Keep practicing daily to build your streak!")
+        motivation_label.setFont(QFont("Segoe UI", 12))
+        motivation_label.setStyleSheet("color: #cccccc; margin-top: 20px;")
+        motivation_label.setWordWrap(True)
+        layout.addWidget(motivation_label)
 
     def get_history_html(self, sessions):
         from datetime import datetime

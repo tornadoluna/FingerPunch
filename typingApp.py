@@ -2,13 +2,28 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser, QDialog, QDialogButtonBox
-from PySide6.QtCore import QTimer, Signal, Qt
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QFont, QIcon
-from PySide6.QtWidgets import QStyle
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QStyle,
+    QTextBrowser,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from statsWorker import StatsDict, StatsWorker
 from textGenerator import generate_mixed_text
+
 
 class ResultsDialog(QDialog):
     def __init__(self, stats: StatsDict, parent: QWidget | None = None) -> None:
@@ -482,11 +497,10 @@ class TypingPracticeApp(QWidget):
             self.start_time = time.time()
             self.timer.start(1000)
 
-        if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text:
-            if not self.is_done:
-                self.is_done = True
-                self.timer.stop()
-                self.show_results_dialog()
+        if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text and not self.is_done:
+            self.is_done = True
+            self.timer.stop()
+            self.show_results_dialog()
 
     def update_stats(self, wpm: str, accuracy: str) -> None:
         if self.start_time is None:

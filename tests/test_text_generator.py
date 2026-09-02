@@ -1,5 +1,12 @@
 """tests for textGenerator module."""
-from textGenerator import POS_WORDS, select_random_word, generate_sentence, generate_mixed_text
+from textGenerator import (
+    POS_WORDS,
+    generate_mixed_text,
+    generate_sentence,
+    select_random_word,
+)
+
+
 def test_pos_words_exists():
     """Test that POS_WORDS exists and has content."""
     assert len(POS_WORDS) > 0

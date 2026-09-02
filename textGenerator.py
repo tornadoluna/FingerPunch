@@ -95,7 +95,6 @@ def generate_mixed_text(length: int = 50) -> str:
         word_count = len(words_in_sentence)
         current_word_count += word_count
 
-    text = " ".join(sentences)
     words_needed = length
     result_sentences = []
     total_words = 0

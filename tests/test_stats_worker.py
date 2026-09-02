@@ -6,6 +6,7 @@ ensuring that changes to the real code are properly tested.
 """
 
 import pytest
+
 from statsWorker import StatsWorker
 
 

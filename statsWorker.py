@@ -1,11 +1,28 @@
-from PySide6.QtCore import QThread, Signal
+from __future__ import annotations
+
 import time
+from typing import TYPE_CHECKING, TypedDict
+
+from PySide6.QtCore import QThread, Signal
+
+if TYPE_CHECKING:
+    from typingApp import TypingPracticeApp
+
+
+class StatsDict(TypedDict):
+    wpm: float
+    accuracy: float
+    time: float
+    total_chars: int
+    keystrokes: int
+    efficiency: float
+
 
 class StatsWorker(QThread):
     stats_updated = Signal(str, str)
     request_text = Signal()
 
-    def __init__(self, app):
+    def __init__(self, app: TypingPracticeApp) -> None:
         super().__init__()
         self.app = app
         self.running = True
@@ -16,16 +33,29 @@ class StatsWorker(QThread):
         self.additions = 0
         self.app.text_updated.connect(self.receive_text)
 
-    def run(self):
+    def run(self) -> None:
         while self.running:
             self.request_text.emit()
             self.msleep(100)
 
-    def receive_text(self, text):
+    def receive_text(self, text: str) -> None:
         self.current_text = text
         self._update_keystroke_stats()
 
-    def _update_keystroke_stats(self):
+    def _correct_chars_and_accuracy(self) -> tuple[int, float]:
+        typed_length = len(self.current_text)
+        sample_length = len(self.app.sample_text)
+
+        correct_chars = sum(
+            1
+            for i in range(min(typed_length, sample_length))
+            if self.current_text[i] == self.app.sample_text[i]
+        )
+        accuracy = (correct_chars / typed_length * 100) if typed_length > 0 else 100.0
+
+        return correct_chars, accuracy
+
+    def _update_keystroke_stats(self) -> None:
 
         prev_len = len(self.previous_text)
         current_len = len(self.current_text)
@@ -44,15 +74,7 @@ class StatsWorker(QThread):
             self.deletions += chars_deleted
             self.total_keystrokes += chars_deleted
 
-        typed_length = len(self.current_text)
-        sample_length = len(self.app.sample_text)
-        correct_chars = 0
-
-        for i in range(min(typed_length, sample_length)):
-            if self.current_text[i] == self.app.sample_text[i]:
-                correct_chars += 1
-
-        accuracy = (correct_chars / typed_length * 100) if typed_length > 0 else 100.0
+        correct_chars, accuracy = self._correct_chars_and_accuracy()
 
         if self.app.start_time:
             elapsed = time.time() - self.app.start_time
@@ -61,27 +83,20 @@ class StatsWorker(QThread):
 
         self.previous_text = self.current_text
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         self.total_keystrokes = 0
         self.deletions = 0
         self.additions = 0
         self.previous_text = ""
         self.current_text = ""
 
-    def stop_worker(self):
+    def stop_worker(self) -> None:
         self.running = False
         self.wait()
 
-    def get_final_stats(self):
+    def get_final_stats(self) -> StatsDict:
         typed_length = len(self.current_text)
-        sample_length = len(self.app.sample_text)
-        correct_chars = 0
-
-        for i in range(min(typed_length, sample_length)):
-            if self.current_text[i] == self.app.sample_text[i]:
-                correct_chars += 1
-
-        accuracy = (correct_chars / typed_length * 100) if typed_length > 0 else 100.0
+        correct_chars, accuracy = self._correct_chars_and_accuracy()
 
         if self.app.start_time:
             elapsed = time.time() - self.app.start_time

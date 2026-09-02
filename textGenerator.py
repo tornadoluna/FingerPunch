@@ -1,6 +1,6 @@
 import random
 
-POS_WORDS = {
+POS_WORDS: dict[str, list[str]] = {
     "DET": ["the", "a", "an", "this", "that", "these", "those"],
     "NOUN": [
         "person", "people", "man", "woman", "child", "children", "boy", "girl", "family", "friend",
@@ -58,7 +58,7 @@ POS_WORDS = {
     "AUX": ["is", "was", "are", "be", "been", "being", "have", "has", "had", "do", "does", "did",
             "will", "would", "could", "should", "may", "might", "must", "can"],
 }
-SENTENCE_TEMPLATES = [
+SENTENCE_TEMPLATES: list[list[str]] = [
     ["DET", "NOUN", "VERB", "DET", "NOUN"],
     ["DET", "ADJ", "NOUN", "VERB", "DET", "NOUN"],
     ["DET", "NOUN", "VERB", "ADV", "DET", "NOUN"],
@@ -69,13 +69,13 @@ SENTENCE_TEMPLATES = [
 ]
 
 
-def select_random_word(pos_tag):
+def select_random_word(pos_tag: str) -> str:
     if pos_tag in POS_WORDS:
         return random.choice(POS_WORDS[pos_tag])
     return ""
 
 
-def generate_sentence():
+def generate_sentence() -> str:
     template = random.choice(SENTENCE_TEMPLATES)
     words = [select_random_word(pos) for pos in template]
 
@@ -84,7 +84,7 @@ def generate_sentence():
     return sentence
 
 
-def generate_mixed_text(length=50):
+def generate_mixed_text(length: int = 50) -> str:
     sentences = []
     current_word_count = 0
 
@@ -95,7 +95,6 @@ def generate_mixed_text(length=50):
         word_count = len(words_in_sentence)
         current_word_count += word_count
 
-    text = " ".join(sentences)
     words_needed = length
     result_sentences = []
     total_words = 0

@@ -1,13 +1,34 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QHBoxLayout, QGroupBox, QProgressBar, QComboBox, QSizePolicy, QTextBrowser, QDialog, QDialogButtonBox
-from PySide6.QtCore import QTimer, Signal, Qt
-from PySide6.QtGui import QFont, QIcon, QTextCursor
-from PySide6.QtWidgets import QStyle
+from __future__ import annotations
+
 import time
-from statsWorker import StatsWorker
+
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QFont, QIcon
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QStyle,
+    QTextBrowser,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from statsWorker import StatsDict, StatsWorker
 from textGenerator import generate_mixed_text
 
+NEW_TEXT_RESULT = 2
+
+
 class ResultsDialog(QDialog):
-    def __init__(self, stats, parent=None):
+    def __init__(self, stats: StatsDict, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.stats = stats
         self.setWindowTitle("Typing Session Complete!")
@@ -16,7 +37,7 @@ class ResultsDialog(QDialog):
         self.resize(500, 400)
         self.init_ui()
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         layout = QVBoxLayout()
         layout.setSpacing(20)
         layout.setContentsMargins(30, 30, 30, 30)
@@ -121,7 +142,7 @@ class ResultsDialog(QDialog):
         layout.addWidget(button_box)
         self.setLayout(layout)
 
-    def get_performance_message(self):
+    def get_performance_message(self) -> str:
         wpm = self.stats['wpm']
         accuracy = self.stats['accuracy']
 
@@ -136,25 +157,25 @@ class ResultsDialog(QDialog):
         else:
             return "🎯 Don't give up! Every expert was once a beginner. Keep trying!"
 
-    def new_text(self):
-        self.done(2)
+    def new_text(self) -> None:
+        self.done(NEW_TEXT_RESULT)
 
 class TypingPracticeApp(QWidget):
     stats_updated = Signal(str, str, str)
     text_updated = Signal(str)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.text_length = 50
-        self.sample_text = generate_mixed_text(length=50)
-        self.start_time = None
+        self.text_length: int = 50
+        self.sample_text: str = generate_mixed_text(length=50)
+        self.start_time: float | None = None
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_time)
-        self.elapsed_time = 0
-        self.is_done = False
-        self.last_wpm = "0"
-        self.last_accuracy = "0%"
-        self.last_scroll_position = 0
+        self.elapsed_time: float = 0
+        self.is_done: bool = False
+        self.last_wpm: str = "0"
+        self.last_accuracy: str = "0%"
+        self.last_scroll_position: int = 0
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -176,7 +197,7 @@ class TypingPracticeApp(QWidget):
         self.stats_worker.stats_updated.connect(self.update_stats)
         self.stats_worker.start()
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         self.setWindowTitle("FingerPunch")
         self.resize(900, 700)
         self.setMinimumSize(800, 700)
@@ -418,13 +439,13 @@ class TypingPracticeApp(QWidget):
 
         self.setLayout(main_layout)
 
-    def start_practice(self):
+    def start_practice(self) -> None:
         if not self.start_time:
             self.start_time = time.time()
             self.timer.start(1000)
             self.input_edit.setFocus()
 
-    def reset_practice(self):
+    def reset_practice(self) -> None:
         self.start_time = None
         self.elapsed_time = 0
         self.is_done = False
@@ -434,21 +455,21 @@ class TypingPracticeApp(QWidget):
         self.progress_bar.setValue(0)
         self.stats_updated.emit("0", "0%", "0s")
 
-    def load_new_sample_text(self):
+    def load_new_sample_text(self) -> None:
         self.sample_text = generate_mixed_text(length=self.text_length)
         self.text_label.setText(self.sample_text)
         self.reset_practice()
 
-    def on_word_count_changed(self, text):
+    def on_word_count_changed(self, text: str) -> None:
         self.text_length = int(text)
         self.load_new_sample_text()
 
-    def update_time(self):
+    def update_time(self) -> None:
         if self.start_time:
             self.elapsed_time = time.time() - self.start_time
             self.stats_updated.emit(self.last_wpm, self.last_accuracy, f"{int(self.elapsed_time)}s")
 
-    def check_progress(self):
+    def check_progress(self) -> None:
         typed_text = self.input_edit.toPlainText()
         self.text_updated.emit(typed_text)
 
@@ -478,29 +499,30 @@ class TypingPracticeApp(QWidget):
             self.start_time = time.time()
             self.timer.start(1000)
 
-        if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text:
-            if not self.is_done:
-                self.is_done = True
-                self.timer.stop()
-                self.show_results_dialog()
+        if len(typed_text) == len(self.sample_text) and typed_text == self.sample_text and not self.is_done:
+            self.is_done = True
+            self.timer.stop()
+            self.show_results_dialog()
 
-    def update_stats(self, wpm, accuracy):
+    def update_stats(self, wpm: str, accuracy: str) -> None:
+        if self.start_time is None:
+            return
         elapsed_time = time.time() - self.start_time
         self.last_wpm = wpm
         self.last_accuracy = accuracy
         self.stats_updated.emit(f"{wpm}", f"{accuracy}", f"{int(elapsed_time)}s")
 
 
-    def show_results_dialog(self):
+    def show_results_dialog(self) -> None:
         stats = self.stats_worker.get_final_stats()
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()
 
         if result == QDialog.Accepted:
             self.reset_practice()
-        elif result == 2:  # New Text button
+        elif result == NEW_TEXT_RESULT:
             self.load_new_sample_text()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QCloseEvent) -> None:
         self.stats_worker.stop_worker()
         super().closeEvent(event)

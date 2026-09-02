@@ -1,5 +1,7 @@
 # FingerPunch
 
+[![CI](https://github.com/tornadoluna/FingerPunch/actions/workflows/ci.yml/badge.svg)](https://github.com/tornadoluna/FingerPunch/actions/workflows/ci.yml)
+
 *A camera-integrated typing practice application that will help users learn optimal finger placement for efficient typing.*
 
 ## Vision

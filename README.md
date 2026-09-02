@@ -40,9 +40,14 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
 - Automated Testing: 20 pytest tests covering text generation and stats logic (see Testing & Quality below)
+- Data Persistence: SQLite database for session history and progress tracking
+- History Viewer: View past sessions with detailed statistics and trends
+- Performance Charts: Visual graphs showing WPM and accuracy progress over time
+- Advanced Analytics: MonkeyType-style statistics including personal bests, improvement metrics, and performance by text length
+- Achievement System: Unlock achievements for reaching milestones and maintaining consistency
+- Streak Tracking: Monitor daily practice streaks and build typing habits
 
 ### In Development
-- Data Persistence: Session history and long-term progress tracking
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
 
 ### Future Enhancements
@@ -54,8 +59,9 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Frontend: PySide6 (Qt6) - Modern, cross-platform GUI
 - Backend: Python 3.12+ - Core application logic
 - Testing: pytest + pytest-cov - Comprehensive test suite
+- Data Visualization: matplotlib - Performance charts and progress tracking
 - Computer Vision: OpenCV + MediaPipe (planned) - Camera feed capture and finger processing
-- Data Storage: SQLite (planned) - Session persistence
+- Data Storage: SQLite - Session persistence
 - Build System: Standard Python packaging
 ## Quick Start
 
@@ -105,6 +111,14 @@ pytest tests/test_stats_worker.py
 - Accuracy: Percentage of correct characters
 - Efficiency: Correct keystrokes / total keystrokes
 - Progress: Real-time completion percentage
+
+### Viewing Progress History
+1. Click the "View History" button in the main interface
+2. Switch between three main tabs for different views:
+   - **📊 Sessions**: Detailed session data in a sortable table
+   - **📈 Analytics**: Interactive charts with dropdown selector for Performance Overview, Recent Activity, and Performance by Length
+   - **🚀 Progress**: Organized sections for Personal Bests, Achievements, Streaks, and Goals
+3. Summary statistics show your overall progress and best performances
 
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands
@@ -159,10 +173,10 @@ pytest tests/test_stats_worker.py -v
 - [x] Comprehensive testing
 
 ### Phase 2: Data Persistence
-- [ ] SQLite database integration
-- [ ] Session history storage
-- [ ] Progress visualization
-- [ ] User profiles
+- [x] SQLite database integration
+- [x] Session history storage
+- [x] Progress visualization
+- [x] User profiles
 
 ### Phase 3: Camera Integration
 - [ ] OpenCV setup

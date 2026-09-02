@@ -81,6 +81,10 @@ def app(mock_qt):
 
         app.stats_updated = Mock()
 
+        # Add data_manager mock
+        app.data_manager = Mock()
+        app.data_manager.save_session = Mock()
+
         return app
 
 
@@ -224,4 +228,3 @@ def test_start_practice_already_started(app):
     # Verify timer and focus are not called again
     app.timer.start.assert_not_called()
     app.input_edit.setFocus.assert_not_called()
-

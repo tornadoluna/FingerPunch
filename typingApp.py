@@ -24,6 +24,8 @@ from PySide6.QtWidgets import (
 from statsWorker import StatsDict, StatsWorker
 from textGenerator import generate_mixed_text
 
+NEW_TEXT_RESULT = 2
+
 
 class ResultsDialog(QDialog):
     def __init__(self, stats: StatsDict, parent: QWidget | None = None) -> None:
@@ -156,7 +158,7 @@ class ResultsDialog(QDialog):
             return "🎯 Don't give up! Every expert was once a beginner. Keep trying!"
 
     def new_text(self) -> None:
-        self.done(2)
+        self.done(NEW_TEXT_RESULT)
 
 class TypingPracticeApp(QWidget):
     stats_updated = Signal(str, str, str)
@@ -518,7 +520,7 @@ class TypingPracticeApp(QWidget):
 
         if result == QDialog.Accepted:
             self.reset_practice()
-        elif result == 2:  # New Text button
+        elif result == NEW_TEXT_RESULT:
             self.load_new_sample_text()
 
     def closeEvent(self, event: QCloseEvent) -> None:

@@ -81,7 +81,7 @@ Tests for the `textGenerator` module functionality.
 
 **Coverage:** 5 tests
 
-**Coverage Improvement:** textGenerator.py coverage increased from **15% → ~85%+**
+**Coverage:** textGenerator.py is at 95% coverage.
 
 ## Writing New Tests
 
@@ -118,10 +118,10 @@ When adding new features or fixing bugs:
 
 | Module | Target | Current | Status |
 |--------|--------|---------|--------|
-| statsWorker.py keystroke logic | 90%+ | 86% | ✅ Excellent |
-| typingApp.py reset/UI logic | 70%+ | 85% | ✅ Good |
-| textGenerator.py | 80%+ | ~85% | ✅ **IMPROVED** |
-| **Overall** | 80%+ | ~65% | ✅ **IMPROVED** |
+| statsWorker.py keystroke logic | 90%+ | 87% | ✅ Near target |
+| textGenerator.py | 80%+ | 95% | ✅ Excellent |
+| typingApp.py reset/UI logic | 70%+ | 19% | ⚠️ Below target — UI construction and the live typing/progress flow (`check_progress`) are untested |
+| **Overall** | 80%+ | 40% | ⚠️ Below target |
 
 ## Continuous Integration
 

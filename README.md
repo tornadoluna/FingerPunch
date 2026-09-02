@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Comprehensive Testing: 20+ tests with 85%+ coverage
+- Automated Testing: 20 pytest tests covering text generation and stats logic (see Testing & Quality below)
 
 ### In Development
 - Data Persistence: Session history and long-term progress tracking
@@ -68,11 +68,12 @@ pip
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/fingerpunch.git
-cd fingerpunch
+git clone https://github.com/tornadoluna/FingerPunch.git
+cd FingerPunch
 
 # Install dependencies
 pip install -r requirements.txt
+# ...or, to also run the tests/linter: pip install -r requirements-dev.txt
 
 # Run the application
 python main.py
@@ -117,7 +118,8 @@ FingerPunch/
 ├── typingApp.py               # Main GUI application
 ├── statsWorker.py             # Statistics and keystroke tracking
 ├── textGenerator.py           # Intelligent text generation
-├── requirements.txt           # Python dependencies
+├── requirements.txt           # Runtime dependencies
+├── requirements-dev.txt       # Dev dependencies (test/lint tooling)
 ├── pytest.ini                # Test configuration
 ├── tests/                    # Test suite
 │   ├── test_stats_worker.py      # Keystroke counting tests
@@ -130,10 +132,10 @@ FingerPunch/
 ## Testing & Quality
 
 ### Test Coverage
-- statsWorker.py: 86% (keystroke logic and stats calculation)
-- typingApp.py: 85% (UI functionality)
-- textGenerator.py: 85% (text generation)
-- Overall: 65%+ with 20+ automated tests
+- statsWorker.py: 87% (keystroke logic and stats calculation)
+- textGenerator.py: 95% (text generation)
+- typingApp.py: 19% (reset/dialog-result logic is covered; UI construction and the live typing/progress flow are not yet tested)
+- Overall: 40% across 20 automated tests
 
 ### Running Tests
 ```bash
@@ -207,8 +209,8 @@ This project is licensed under the GNU Lesser General Public License v3.0 (LGPLv
 
 ## Support
 
-- Issues: GitHub Issues (https://github.com/yourusername/fingerpunch/issues)
-- Discussions: GitHub Discussions (https://github.com/yourusername/fingerpunch/discussions)
+- Issues: GitHub Issues (https://github.com/tornadoluna/FingerPunch/issues)
+- Discussions: GitHub Discussions (https://github.com/tornadoluna/FingerPunch/discussions)
 - Documentation: See tests/README.md for testing details
 
 ## Mission Statement

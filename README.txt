@@ -193,7 +193,7 @@ pytest tests/test_stats_worker.py -v
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU Lesser General Public License v3.0 (LGPLv3) - see the LICENSE file for details.
 
 ## Acknowledgments
 

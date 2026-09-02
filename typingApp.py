@@ -489,6 +489,8 @@ class TypingPracticeApp(QWidget):
                 self.show_results_dialog()
 
     def update_stats(self, wpm: str, accuracy: str) -> None:
+        if self.start_time is None:
+            return
         elapsed_time = time.time() - self.start_time
         self.last_wpm = wpm
         self.last_accuracy = accuracy

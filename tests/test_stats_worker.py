@@ -1,7 +1,7 @@
 """
 Test suite for StatsWorker keystroke counting.
 
-These tests verify the actual StatsWorker implementation from statsWorker.py,
+These tests verify the actual StatsWorker implementation from fingerpunch/stats.py,
 ensuring that changes to the real code are properly tested.
 """
 
@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from statsWorker import StatsWorker
+from fingerpunch.stats import StatsWorker
 
 
 class MockApp:

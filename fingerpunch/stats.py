@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, TypedDict
+from typing import Any, Protocol, TypedDict
 
 from PySide6.QtCore import QObject, Signal
 
-if TYPE_CHECKING:
-    from typingApp import TypingPracticeApp
+
+class TypingSession(Protocol):
+    sample_text: str
+    start_time: float | None
+    text_updated: Any
 
 
 class SampleDict(TypedDict):
@@ -29,7 +32,7 @@ class StatsDict(TypedDict):
 class StatsWorker(QObject):
     stats_updated = Signal(str, str)
 
-    def __init__(self, app: TypingPracticeApp) -> None:
+    def __init__(self, app: TypingSession) -> None:
         super().__init__()
         self.app = app
         self.current_text = ""

@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import styles
-from statsWorker import StatsDict
+from fingerpunch.stats import StatsDict
+from fingerpunch.ui import styles
 
 NEW_TEXT_RESULT = 2
 MIN_SAMPLES_FOR_CHART = 2

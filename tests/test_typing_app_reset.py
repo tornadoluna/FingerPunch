@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from typingApp import TypingPracticeApp
+from fingerpunch.ui.main_window import TypingPracticeApp
 
 
 class MockQApplication:
@@ -43,8 +43,8 @@ def mock_qt():
          patch('PySide6.QtGui.QIcon'), \
          patch('PySide6.QtWidgets.QStyle'), \
          patch('PySide6.QtWidgets.QSizePolicy'), \
-         patch('statsWorker.StatsWorker'), \
-         patch('textGenerator.generate_mixed_text', return_value="test sample text"):
+         patch('fingerpunch.stats.StatsWorker'), \
+         patch('fingerpunch.text_generator.generate_mixed_text', return_value="test sample text"):
         yield
 
 
@@ -116,7 +116,7 @@ def test_reset_practice_functionality(app):
 def test_load_new_sample_text_functionality(app):
     """Test that load_new_sample_text generates new text and calls reset."""
     # Remove the module-level mock for this specific test
-    with patch('typingApp.generate_mixed_text', return_value="new generated text") as mock_generate:
+    with patch('fingerpunch.ui.main_window.generate_mixed_text', return_value="new generated text") as mock_generate:
         # Call load_new_sample_text
         app.load_new_sample_text()
 
@@ -132,7 +132,7 @@ def test_load_new_sample_text_functionality(app):
 
 def test_show_results_dialog_try_again(app):
     """Test that 'Try Again' button result calls reset_practice."""
-    with patch('typingApp.ResultsDialog') as mock_dialog_class:
+    with patch('fingerpunch.ui.main_window.ResultsDialog') as mock_dialog_class:
         mock_dialog = Mock()
         mock_dialog.exec.return_value = 1  # QDialog.Accepted
         mock_dialog_class.return_value = mock_dialog
@@ -150,7 +150,7 @@ def test_show_results_dialog_try_again(app):
 
 def test_show_results_dialog_new_text(app):
     """Test that 'New Text' button result calls load_new_sample_text."""
-    with patch('typingApp.ResultsDialog') as mock_dialog_class, \
+    with patch('fingerpunch.ui.main_window.ResultsDialog') as mock_dialog_class, \
          patch.object(app, 'load_new_sample_text') as mock_load_new:
 
         mock_dialog = Mock()
@@ -166,7 +166,7 @@ def test_show_results_dialog_new_text(app):
 
 def test_show_results_dialog_close(app):
     """Test that 'Close' button result does nothing special."""
-    with patch('typingApp.ResultsDialog') as mock_dialog_class, \
+    with patch('fingerpunch.ui.main_window.ResultsDialog') as mock_dialog_class, \
          patch.object(app, 'reset_practice') as mock_reset, \
          patch.object(app, 'load_new_sample_text') as mock_load_new:
 

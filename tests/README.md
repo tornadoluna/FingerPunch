@@ -51,10 +51,10 @@ pytest --cov=. --cov-report=html
 ### test_stats_worker.py
 Tests for the `StatsWorker` class, specifically keystroke counting accuracy.
 
-**What it tests:** The actual `StatsWorker` implementation from `statsWorker.py`
+**What it tests:** The actual `StatsWorker` implementation from `fingerpunch/stats.py`
 - ✅ **Real code testing** - Imports and tests the actual StatsWorker class
 - ✅ **Integration testing** - Tests the complete keystroke counting workflow
-- ✅ **Regression protection** - Changes to `statsWorker.py` will be caught by these tests
+- ✅ **Regression protection** - Changes to `fingerpunch/stats.py` will be caught by these tests
 
 **Coverage:** 7 tests
 
@@ -71,7 +71,7 @@ Tests for the `TypingPracticeApp` reset functionality and UI logic.
 **Coverage:** 8 tests
 
 ### test_text_generator.py
-Tests for the `textGenerator` module functionality.
+Tests for the `text_generator` module functionality.
 
 **What it tests:** Text generation, word selection, and sentence creation
 - ✅ **POS_WORDS validation** - Tests vocabulary structure and content
@@ -81,7 +81,7 @@ Tests for the `textGenerator` module functionality.
 
 **Coverage:** 5 tests
 
-**Coverage:** textGenerator.py is at 95% coverage.
+**Coverage:** fingerpunch/text_generator.py is at 95% coverage.
 
 ## Writing New Tests
 
@@ -93,7 +93,7 @@ Tests for the `textGenerator` module functionality.
 ### Example Test Structure
 ```python
 import pytest
-from textGenerator import generate_sentence
+from fingerpunch.text_generator import generate_sentence
 
 def test_sentence_structure():
     """Test that generated sentences have proper structure."""
@@ -118,9 +118,9 @@ When adding new features or fixing bugs:
 
 | Module | Target | Current | Status |
 |--------|--------|---------|--------|
-| statsWorker.py keystroke logic | 90%+ | 87% | ✅ Near target |
-| textGenerator.py | 80%+ | 95% | ✅ Excellent |
-| typingApp.py reset/UI logic | 70%+ | 19% | ⚠️ Below target — UI construction and the live typing/progress flow (`check_progress`) are untested |
+| fingerpunch/stats.py keystroke logic | 90%+ | 87% | ✅ Near target |
+| fingerpunch/text_generator.py | 80%+ | 95% | ✅ Excellent |
+| fingerpunch/ui/main_window.py reset/UI logic | 70%+ | 19% | ⚠️ Below target — UI construction and the live typing/progress flow (`check_progress`) are untested |
 | **Overall** | 80%+ | 40% | ⚠️ Below target |
 
 ## Continuous Integration

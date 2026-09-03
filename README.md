@@ -80,8 +80,11 @@ cd FingerPunch
 pip install -r requirements.txt
 # ...or, to also run the tests/linter: pip install -r requirements-dev.txt
 
+# Install the app (provides the `fingerpunch` command)
+pip install -e .
+
 # Run the application
-python main.py
+fingerpunch
 ```
 
 ### Running Tests
@@ -127,28 +130,41 @@ pytest tests/test_stats_worker.py
 ## Project Structure
 ```
 FingerPunch/
-├── main.py                     # Application entry point
-├── typingApp.py               # Main GUI application
-├── statsWorker.py             # Statistics and keystroke tracking
-├── textGenerator.py           # Intelligent text generation
-├── requirements.txt           # Runtime dependencies
-├── requirements-dev.txt       # Dev dependencies (test/lint tooling)
-├── pytest.ini                # Test configuration
-├── tests/                    # Test suite
-│   ├── test_stats_worker.py      # Keystroke counting tests
+├── fingerpunch/                  # Application package
+│   ├── __main__.py               # Entry point
+│   ├── stats.py                  # Statistics and keystroke tracking
+│   ├── text_generator.py         # Sentence generation
+│   ├── data_manager.py           # SQLite session persistence
+│   └── ui/                       # Qt presentation layer
+│       ├── main_window.py        # Main practice window
+│       ├── results_dialog.py     # End-of-session results
+│       ├── history_dialog.py     # History, analytics, progress
+│       └── styles.py             # Shared dark-theme design system
+├── tests/                        # Test suite
+│   ├── test_stats_worker.py      # Keystroke and accuracy tests
 │   ├── test_typing_app_reset.py  # UI reset functionality tests
 │   ├── test_text_generator.py    # Text generation tests
 │   └── README.md                 # Test documentation
-└── README.md                 # This file
+├── pyproject.toml                # Packaging, entry point, lint config
+├── requirements.txt              # Runtime dependencies
+├── requirements-dev.txt          # Dev dependencies (test/lint tooling)
+├── pytest.ini                    # Test configuration
+└── README.md                     # This file
 ```
 
 ## Testing & Quality
 
 ### Test Coverage
-- statsWorker.py: 87% (keystroke logic and stats calculation)
-- textGenerator.py: 95% (text generation)
-- typingApp.py: 19% (reset/dialog-result logic is covered; UI construction and the live typing/progress flow are not yet tested)
-- Overall: 40% across 20 automated tests
+- fingerpunch/text_generator.py: 100%
+- fingerpunch/stats.py: 99% (keystroke, accuracy and sampling logic)
+- fingerpunch/ui/main_window.py: 24% (reset and dialog-result logic only)
+- fingerpunch/ui/results_dialog.py: 15%
+- fingerpunch/data_manager.py: 12%
+- fingerpunch/ui/history_dialog.py: 8%
+- Overall: 28% across 25 automated tests
+
+The logic layer is well covered; the Qt presentation layer and the SQLite
+persistence layer are largely untested and are the next testing priority.
 
 ### Running Tests
 ```bash

@@ -1,5 +1,5 @@
-"""tests for textGenerator module."""
-from textGenerator import (
+"""tests for the text_generator module."""
+from fingerpunch.text_generator import (
     POS_WORDS,
     generate_mixed_text,
     generate_sentence,

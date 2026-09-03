@@ -20,12 +20,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import styles
-from dataManager import DataManager
-from historyDialog import HistoryDialog
-from resultsDialog import NEW_TEXT_RESULT, ResultsDialog
-from statsWorker import StatsWorker
-from textGenerator import generate_mixed_text
+from fingerpunch.data_manager import DataManager
+from fingerpunch.stats import StatsWorker
+from fingerpunch.text_generator import generate_mixed_text
+from fingerpunch.ui import styles
+from fingerpunch.ui.history_dialog import HistoryDialog
+from fingerpunch.ui.results_dialog import NEW_TEXT_RESULT, ResultsDialog
 
 
 def show_message(parent: QWidget, title: str, message: str) -> None:

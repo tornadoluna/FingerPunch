@@ -2,7 +2,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from typingApp import TypingPracticeApp
+from fingerpunch.ui.main_window import TypingPracticeApp
 
 
 def main() -> None:

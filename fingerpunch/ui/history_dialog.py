@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import styles
-from dataManager import DataManager
+from fingerpunch.data_manager import DataManager
+from fingerpunch.ui import styles
 
 
 class HistoryDialog(QDialog):

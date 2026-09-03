@@ -22,3 +22,6 @@ include = ["fingerpunch*"]
 
 [tool.ruff.lint]
 ignore = ["DTZ005"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["DTZ001"]

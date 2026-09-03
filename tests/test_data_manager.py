@@ -236,10 +236,6 @@ class TestStreaks:
 
         assert db.get_streak_info()['current_streak'] == 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="streaks.date has no UNIQUE constraint, so INSERT OR REPLACE appends instead of replacing",
-    )
     def test_updating_twice_in_one_day_does_not_create_duplicate_rows(self, db):
         db.save_session(make_stats())
 
@@ -250,10 +246,6 @@ class TestStreaks:
             rows = conn.execute('SELECT COUNT(*) FROM streaks').fetchone()[0]
         assert rows == 1, "one row per day; streaks.date has no UNIQUE constraint so OR REPLACE cannot replace"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="duplicate rows per date make get_streak_info read an arbitrary (stale) row",
-    )
     def test_consecutive_days_report_a_two_day_streak(self, db):
         yesterday = (datetime.now() - timedelta(days=1)).isoformat()
         insert_session_at(db, yesterday)
@@ -263,6 +255,56 @@ class TestStreaks:
         db.update_streaks()
 
         assert db.get_streak_info()['current_streak'] == 2
+
+    def test_three_consecutive_days_build_a_three_day_streak(self, db):
+        for offset in (2, 1, 0):
+            insert_session_at(db, (datetime.now() - timedelta(days=offset)).isoformat())
+
+        db.update_streaks()
+
+        assert db.get_streak_info()['current_streak'] == 3
+
+    def test_a_missed_day_breaks_the_current_streak_but_not_the_longest(self, db):
+        for offset in (5, 4, 3):
+            insert_session_at(db, (datetime.now() - timedelta(days=offset)).isoformat())
+        insert_session_at(db, datetime.now().isoformat())
+
+        db.update_streaks()
+        info = db.get_streak_info()
+
+        assert info['current_streak'] == 1, "the three-day run is not consecutive with today"
+        assert info['longest_streak'] == 3, "the earlier run is still the longest"
+
+    def test_update_streaks_is_idempotent(self, db):
+        for offset in (1, 0):
+            insert_session_at(db, (datetime.now() - timedelta(days=offset)).isoformat())
+
+        for _ in range(5):
+            db.update_streaks()
+
+        assert db.get_streak_info()['current_streak'] == 2, "repeat calls must not inflate the streak"
+        with sqlite3.connect(db.db_path) as conn:
+            assert conn.execute('SELECT COUNT(*) FROM streaks').fetchone()[0] == 1
+
+    def test_streak_spans_a_month_boundary(self, db, monkeypatch):
+        from fingerpunch import data_manager
+
+        frozen = datetime(2026, 3, 1, 12, 0, 0)
+
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen
+
+        monkeypatch.setattr(data_manager, 'datetime', FrozenDateTime)
+
+        insert_session_at(db, datetime(2026, 2, 27, 10, 0, 0).isoformat())
+        insert_session_at(db, datetime(2026, 2, 28, 10, 0, 0).isoformat())
+        insert_session_at(db, frozen.isoformat())
+
+        db.update_streaks()
+
+        assert db.get_streak_info()['current_streak'] == 3, "Feb 27, Feb 28 and Mar 1 are consecutive"
 
 
 class TestExportImport:

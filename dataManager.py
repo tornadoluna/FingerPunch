@@ -38,22 +38,6 @@ class DataManager:
             ''')
 
 
-            # Create achievements table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS achievements (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    description TEXT NOT NULL,
-                    icon TEXT,
-                    category TEXT,
-                    requirement_type TEXT,
-                    requirement_value REAL,
-                    unlocked BOOLEAN DEFAULT FALSE,
-                    unlocked_date TEXT,
-                    progress REAL DEFAULT 0
-                )
-            ''')
-
             # Create streaks table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS streaks (
@@ -358,109 +342,6 @@ class DataManager:
             })
 
         return trend_data
-
-    # ===== ACHIEVEMENTS SYSTEM =====
-
-    def init_achievements(self):
-        """Initialize default achievements."""
-        achievements = [
-            # Beginner achievements
-            ("First Steps", "Complete your first typing session", "🎯", "beginner", "sessions", 1),
-            ("Getting Started", "Complete 10 typing sessions", "🚀", "beginner", "sessions", 10),
-            ("Century Club", "Reach 100 WPM", "💯", "speed", "wpm", 100),
-            ("Accuracy Master", "Achieve 98% accuracy", "🎯", "accuracy", "accuracy", 98),
-
-            # Speed achievements
-            ("Speed Demon", "Reach 120 WPM", "⚡", "speed", "wpm", 120),
-            ("Lightning Fast", "Reach 150 WPM", "⚡", "speed", "wpm", 150),
-            ("Typing God", "Reach 200 WPM", "👑", "speed", "wpm", 200),
-
-            # Consistency achievements
-            ("Consistent", "Complete sessions for 7 consecutive days", "🔥", "consistency", "streak", 7),
-            ("Dedicated", "Complete sessions for 30 consecutive days", "🔥", "consistency", "streak", 30),
-            ("Unstoppable", "Complete sessions for 100 consecutive days", "🔥", "consistency", "streak", 100),
-
-            # Volume achievements
-            ("Century Sessions", "Complete 100 typing sessions", "📊", "volume", "sessions", 100),
-            ("Half Thousand", "Complete 500 typing sessions", "📊", "volume", "sessions", 500),
-            ("Thousand Club", "Complete 1000 typing sessions", "📊", "volume", "sessions", 1000),
-
-            # Time achievements
-            ("Hour of Practice", "Spend 1 hour total practicing", "⏰", "time", "total_time", 3600),
-            ("Practice Veteran", "Spend 10 hours total practicing", "⏰", "time", "total_time", 36000),
-            ("Time Master", "Spend 100 hours total practicing", "⏰", "time", "total_time", 360000),
-        ]
-
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            for name, desc, icon, category, req_type, req_value in achievements:
-                cursor.execute('SELECT id FROM achievements WHERE name = ?', (name,))
-                if not cursor.fetchone():
-                    cursor.execute('''
-                        INSERT INTO achievements 
-                        (name, description, icon, category, requirement_type, requirement_value)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (name, desc, icon, category, req_type, req_value))
-            cursor.execute('DELETE FROM achievements WHERE id NOT IN (SELECT MIN(id) FROM achievements GROUP BY name)')
-            conn.commit()
-
-    def check_achievements(self):
-        """Check and update achievement progress."""
-        stats = self.get_session_stats()
-        bests = self.get_personal_bests()
-        streaks = self.get_streak_info()
-
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-
-            # Get all achievements
-            cursor.execute('SELECT * FROM achievements')
-            achievements = cursor.fetchall()
-
-            for achievement in achievements:
-                ach_id, _name, _desc, _icon, _category, req_type, req_value, unlocked, _unlocked_date, progress = achievement
-
-                if unlocked:
-                    continue
-
-                # Check requirement based on type
-                achieved = False
-                new_progress = 0
-
-                if req_type == "sessions":
-                    new_progress = stats['total_sessions']
-                    achieved = new_progress >= req_value
-                elif req_type == "wpm":
-                    new_progress = bests['best_wpm']['value']
-                    achieved = new_progress >= req_value
-                elif req_type == "accuracy":
-                    new_progress = bests['best_accuracy']['value']
-                    achieved = new_progress >= req_value
-                elif req_type == "streak":
-                    new_progress = streaks['longest_streak']
-                    achieved = new_progress >= req_value
-                elif req_type == "total_time":
-                    new_progress = stats['total_time']
-                    achieved = new_progress >= req_value
-
-                # Update achievement
-                if achieved and not unlocked:
-                    cursor.execute('''
-                        UPDATE achievements 
-                        SET unlocked = TRUE, unlocked_date = ?, progress = ?
-                        WHERE id = ?
-                    ''', (datetime.now().isoformat(), new_progress, ach_id))
-                elif new_progress > progress:
-                    cursor.execute('UPDATE achievements SET progress = ? WHERE id = ?', (new_progress, ach_id))
-
-            conn.commit()
-
-    def get_achievements(self):
-        """Get all achievements with progress."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM achievements ORDER BY category, requirement_value')
-            return cursor.fetchall()
 
     # ===== STREAK TRACKING =====
 

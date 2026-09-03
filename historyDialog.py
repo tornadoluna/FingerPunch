@@ -7,16 +7,14 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QListView,
     QPushButton,
     QTabWidget,
     QTextBrowser,
@@ -29,7 +27,7 @@ from dataManager import DataManager
 
 
 class HistoryDialog(QDialog):
-    """Tabbed view of session history, performance analytics, and achievements."""
+    """Tabbed view of session history, performance analytics, and progress."""
 
     def __init__(self, data_manager: DataManager, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -299,26 +297,14 @@ class HistoryDialog(QDialog):
         bests_group.setLayout(bests_layout)
         layout.addWidget(bests_group)
 
-        row = QHBoxLayout()
-        row.setSpacing(15)
-
-        achievements_group = QGroupBox("ACHIEVEMENTS")
-        achievements_group.setStyleSheet(styles.panel_style(border_color=styles.ACCENT, title_color=styles.ACCENT))
-        achievements_layout = QVBoxLayout()
-        achievements_layout.setSpacing(10)
-        self._build_achievements(achievements_layout)
-        achievements_group.setLayout(achievements_layout)
-        row.addWidget(achievements_group)
-
         streaks_group = QGroupBox("STREAKS")
         streaks_group.setStyleSheet(styles.panel_style(border_color=styles.WARNING, title_color=styles.WARNING))
         streaks_layout = QVBoxLayout()
         streaks_layout.setSpacing(10)
         self._build_streaks(streaks_layout)
         streaks_group.setLayout(streaks_layout)
-        row.addWidget(streaks_group)
+        layout.addWidget(streaks_group)
 
-        layout.addLayout(row)
         widget.setLayout(layout)
         return widget
 
@@ -406,90 +392,6 @@ class HistoryDialog(QDialog):
             grid.addWidget(consistency_label, row, 0, 1, 3)
 
         layout.addLayout(grid)
-
-    def _build_achievements(self, layout: QVBoxLayout) -> None:
-        achievements = self.data_manager.get_achievements()
-        if not achievements:
-            label = QLabel("No achievements earned yet. Complete sessions to unlock achievements.")
-            label.setFont(styles.ui_font(12))
-            label.setStyleSheet(f"color: {styles.TEXT_SECONDARY};")
-            label.setWordWrap(True)
-            layout.addWidget(label)
-            return
-
-        list_view = QListView()
-        list_view.setFont(styles.ui_font(12))
-        list_view.setStyleSheet(f"""
-            QListView {{
-                border: 1px solid {styles.BORDER};
-                border-radius: 8px;
-                background-color: {styles.BG_SURFACE};
-                color: {styles.TEXT_PRIMARY};
-            }}
-            QListView::item {{
-                padding: 10px;
-                border-bottom: 1px solid {styles.BORDER};
-            }}
-            QListView::item:selected {{
-                background-color: {styles.ACCENT_MUTED};
-                color: {styles.TEXT_PRIMARY};
-            }}
-        """)
-        list_view.setSelectionMode(QAbstractItemView.SingleSelection)
-        list_view.setSpacing(5)
-
-        model = QStandardItemModel()
-        for achievement in achievements:
-            _ach_id, name, _desc, icon, _category, _req_type, _req_value, unlocked, _unlocked_date, _progress = achievement
-            status_icon = icon if unlocked else "🔒"
-            item = QStandardItem(f"{status_icon} {name}")
-            item.setData(achievement, role=Qt.UserRole)
-            model.appendRow(item)
-        list_view.setModel(model)
-
-        list_view.selectionModel().selectionChanged.connect(
-            lambda: self._on_achievement_selected(list_view, model)
-        )
-        layout.addWidget(list_view)
-
-        self.achievement_details = QTextBrowser()
-        self.achievement_details.setFont(styles.ui_font(12))
-        self.achievement_details.setStyleSheet(styles.TEXT_BROWSER_COMPACT_STYLE)
-        self.achievement_details.setOpenExternalLinks(True)
-        layout.addWidget(self.achievement_details)
-
-        if achievements:
-            self._load_achievement_details(achievements[0])
-
-    def _on_achievement_selected(self, list_view: QListView, model: QStandardItemModel) -> None:
-        selected = list_view.selectedIndexes()
-        if not selected:
-            return
-        index = selected[0].row()
-        achievement = model.item(index).data(Qt.UserRole)
-        self._load_achievement_details(achievement)
-
-    def _load_achievement_details(self, achievement: tuple) -> None:
-        _ach_id, name, desc, icon, category, _req_type, req_value, unlocked, unlocked_date, progress = achievement
-
-        status = "Unlocked" if unlocked else f"Locked ({progress}/{req_value})"
-        unlock_date = f"Unlocked: {unlocked_date[:10]}" if unlocked and unlocked_date else ""
-
-        html = f"""
-        <style>
-        .title {{ font-size: 16px; font-weight: bold; color: {styles.ACCENT}; }}
-        .subtitle {{ font-size: 13px; font-weight: bold; color: {styles.TEXT_PRIMARY}; }}
-        .text {{ font-size: 12px; color: {styles.TEXT_SECONDARY}; }}
-        </style>
-        <div class="title">{icon} {name}</div>
-        <div class="subtitle">Category: {category.title()}</div>
-        <div class="subtitle">Status: {status}</div>
-        <div class="text">{desc}</div>
-        """
-        if unlock_date:
-            html += f'<div class="text">{unlock_date}</div>'
-
-        self.achievement_details.setHtml(html)
 
     def _build_streaks(self, layout: QVBoxLayout) -> None:
         streak_info = self.data_manager.get_streak_info()

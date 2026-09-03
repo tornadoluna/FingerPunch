@@ -1,0 +1,7 @@
+[tool.ruff.lint]
+# DTZ005 (naive datetime.now()) is intentionally not enforced: FingerPunch is a
+# single-user local desktop app, and session timestamps / streak calculations
+# are meant to use the user's local wall-clock day, not UTC. Making these
+# timezone-aware would change which calendar day a late-night session counts
+# toward.
+ignore = ["DTZ005"]

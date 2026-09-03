@@ -60,6 +60,8 @@ db.sqlite3
 instance/
 .webassets-cache
 
+#sqlite files
+*.db
 # Scrapy stuff:
 .scrapy
 
@@ -118,3 +120,4 @@ dmypy.json
 # OS
 .DS_Store
 Thumbs.db
+

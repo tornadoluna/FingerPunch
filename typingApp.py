@@ -934,7 +934,7 @@ class TypingPracticeApp(QWidget):
         improvements = self.data_manager.get_improvement_metrics()
 
         # Create a grid layout for better organization
-        from PySide6.QtWidgets import QGridLayout, QGroupBox
+        from PySide6.QtWidgets import QGridLayout
         grid = QGridLayout()
         grid.setSpacing(10)
 
@@ -1025,7 +1025,7 @@ class TypingPracticeApp(QWidget):
             return
 
         # Create a list view for achievements
-        from PySide6.QtWidgets import QListView, QAbstractItemView
+        from PySide6.QtWidgets import QAbstractItemView, QListView
         list_view = QListView()
         list_view.setFont(QFont("Segoe UI", 12))
         list_view.setStyleSheet("""
@@ -1048,10 +1048,10 @@ class TypingPracticeApp(QWidget):
         list_view.setSpacing(5)
 
         # Set model for list view
-        from PySide6.QtGui import QStandardItemModel, QStandardItem
+        from PySide6.QtGui import QStandardItem, QStandardItemModel
         model = QStandardItemModel()
         for achievement in achievements:
-            ach_id, name, desc, icon, category, req_type, req_value, unlocked, unlocked_date, progress = achievement
+            _ach_id, name, _desc, icon, _category, _req_type, _req_value, unlocked, _unlocked_date, _progress = achievement
             status_icon = icon if unlocked else "🔒"
             item_text = f"{status_icon} {name}"
             item = QStandardItem(item_text)
@@ -1092,7 +1092,7 @@ class TypingPracticeApp(QWidget):
         self.load_achievement_details(achievement)
 
     def load_achievement_details(self, achievement):
-        ach_id, name, desc, icon, category, req_type, req_value, unlocked, unlocked_date, progress = achievement
+        _ach_id, name, desc, icon, category, _req_type, req_value, unlocked, unlocked_date, progress = achievement
 
         status = "✅ Unlocked" if unlocked else f"🔒 Locked ({progress}/{req_value})"
         unlock_date = f"Unlocked: {unlocked_date[:10]}" if unlocked and unlocked_date else ""

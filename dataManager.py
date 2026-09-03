@@ -1,7 +1,7 @@
-import sqlite3
-import os
-from datetime import datetime
 import json
+import sqlite3
+from datetime import datetime
+
 
 class DataManager:
     def __init__(self, db_path="typingStats.db"):
@@ -195,13 +195,13 @@ class DataManager:
         """Get daily test activity for the last N days."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('''
+            cursor.execute(f'''
                 SELECT DATE(date) as day, COUNT(*) as tests
                 FROM sessions
-                WHERE date >= date('now', '-{} days')
+                WHERE date >= date('now', '-{days} days')
                 GROUP BY DATE(date)
                 ORDER BY day
-            '''.format(days))
+            ''')
             return cursor.fetchall()
 
     def get_performance_by_length(self):
@@ -418,7 +418,7 @@ class DataManager:
             achievements = cursor.fetchall()
 
             for achievement in achievements:
-                ach_id, name, desc, icon, category, req_type, req_value, unlocked, unlocked_date, progress = achievement
+                ach_id, _name, _desc, _icon, _category, req_type, req_value, unlocked, _unlocked_date, progress = achievement
 
                 if unlocked:
                     continue
@@ -466,6 +466,7 @@ class DataManager:
 
     def update_streaks(self):
         """Update daily streak information."""
+        from datetime import timedelta
         today = datetime.now().date().isoformat()
 
         with sqlite3.connect(self.db_path) as conn:
@@ -476,7 +477,7 @@ class DataManager:
             today_sessions = cursor.fetchone()[0]
 
             # Get yesterday's date
-            yesterday = (datetime.now().date().replace(day=datetime.now().day-1)).isoformat()
+            yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
             cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (yesterday,))
             yesterday_sessions = cursor.fetchone()[0]
 
@@ -526,12 +527,12 @@ class DataManager:
         """Get streak history for the last N days."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('''
+            cursor.execute(f'''
                 SELECT date, sessions_count, current_streak 
                 FROM streaks 
-                WHERE date >= date('now', '-{} days')
+                WHERE date >= date('now', '-{days} days')
                 ORDER BY date
-            '''.format(days))
+            ''')
             return cursor.fetchall()
 
     # ===== PROGRESS INSIGHTS =====

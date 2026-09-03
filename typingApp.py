@@ -76,7 +76,6 @@ class TypingPracticeApp(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setStyleSheet(styles.PROGRESS_BAR_STYLE)
         self.data_manager = DataManager()
-        self.data_manager.init_achievements()
         self._init_ui()
 
         self.stats_worker = StatsWorker(self)
@@ -289,7 +288,6 @@ class TypingPracticeApp(QWidget):
         stats = self.stats_worker.get_final_stats()
         self.data_manager.save_session(stats, self.sample_text)
         self.data_manager.update_streaks()
-        self.data_manager.check_achievements()
 
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()

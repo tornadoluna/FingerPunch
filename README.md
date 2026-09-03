@@ -44,7 +44,6 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
 - Advanced Analytics: MonkeyType-style statistics including personal bests, improvement metrics, and performance by text length
-- Achievement System: Unlock achievements for reaching milestones and maintaining consistency
 - Streak Tracking: Monitor daily practice streaks and build typing habits
 
 ### In Development
@@ -117,7 +116,7 @@ pytest tests/test_stats_worker.py
 2. Switch between three main tabs for different views:
    - **📊 Sessions**: Detailed session data in a sortable table
    - **📈 Analytics**: Interactive charts with dropdown selector for Performance Overview, Recent Activity, and Performance by Length
-   - **🚀 Progress**: Organized sections for Personal Bests, Achievements, Streaks, and Goals
+   - **🚀 Progress**: Personal Bests, improvement metrics, and Streaks
 3. Summary statistics show your overall progress and best performances
 
 ### Finger Training (Future)

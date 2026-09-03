@@ -5,6 +5,8 @@ These tests verify the actual StatsWorker implementation from statsWorker.py,
 ensuring that changes to the real code are properly tested.
 """
 
+import time
+
 import pytest
 
 from statsWorker import StatsWorker
@@ -163,4 +165,92 @@ def test_character_replacement_detection(stats_worker):
 
     # The logic should detect this as a 2-keystroke correction
     assert stats_worker.total_keystrokes == 5, f"Expected 5 keystrokes (3 add + 2 correction), got {stats_worker.total_keystrokes}"
+
+
+def test_accuracy_penalizes_corrected_mistakes():
+    """Test 6: A typo that gets corrected should NOT result in 100% accuracy,
+    even though the final text matches the sample exactly."""
+    mock_app = MockApp(sample_text="hello")
+    worker = StatsWorker(mock_app)
+    worker.reset_stats()
+
+    worker.receive_text("h")      # correct
+    worker.receive_text("ha")     # typo: 'a' instead of 'e'
+    worker.receive_text("h")      # backspace the typo
+    worker.receive_text("he")     # corrected
+    worker.receive_text("hel")
+    worker.receive_text("hell")
+    worker.receive_text("hello")  # final text matches the sample exactly
+
+    assert worker.current_text == "hello"
+    stats = worker.get_final_stats()
+    assert stats['accuracy'] < 100.0, f"Expected accuracy below 100% due to the corrected typo, got {stats['accuracy']}"
+    # 5 correct character-events out of 6 total (the wrong 'a' still counts as one event)
+    assert stats['accuracy'] == pytest.approx(5 / 6 * 100)
+
+
+def test_accuracy_perfect_typing_is_100_percent():
+    """Test 7: Typing with no mistakes at all should still report 100% accuracy."""
+    mock_app = MockApp(sample_text="hello")
+    worker = StatsWorker(mock_app)
+    worker.reset_stats()
+
+    worker.receive_text("h")
+    worker.receive_text("he")
+    worker.receive_text("hel")
+    worker.receive_text("hell")
+    worker.receive_text("hello")
+
+    stats = worker.get_final_stats()
+    assert stats['accuracy'] == 100.0, f"Expected 100% accuracy for mistake-free typing, got {stats['accuracy']}"
+
+
+def test_record_sample_requires_started_session():
+    """Test 8: Sampling before the session starts records nothing."""
+    worker = StatsWorker(MockApp(sample_text="hello"))
+    worker.reset_stats()
+
+    worker.record_sample()
+
+    assert worker.samples == []
+    assert worker.get_final_stats()['samples'] == []
+
+
+def test_record_sample_collects_a_series():
+    """Test 9: Each sample captures elapsed time, WPM, raw WPM and error count."""
+    mock_app = MockApp(sample_text="hello")
+    worker = StatsWorker(mock_app)
+    worker.reset_stats()
+    mock_app.start_time = time.time() - 30
+
+    worker.receive_text("h")
+    worker.record_sample()
+    worker.receive_text("ha")  # typo
+    worker.record_sample()
+    worker.receive_text("h")
+    worker.receive_text("he")
+    worker.record_sample()
+
+    samples = worker.get_final_stats()['samples']
+    assert len(samples) == 3
+    assert [s['t'] for s in samples] == sorted(s['t'] for s in samples)
+    assert samples[0]['errors'] == 0
+    assert samples[1]['errors'] == 1, "the typo should show up as an error at that point"
+    assert samples[2]['errors'] == 1, "correcting it doesn't erase the earlier error"
+    assert all(s['raw_wpm'] >= s['wpm'] for s in samples)
+
+
+def test_reset_stats_clears_samples():
+    """Test 10: Restarting a session discards the previous session's series."""
+    mock_app = MockApp(sample_text="hello")
+    worker = StatsWorker(mock_app)
+    mock_app.start_time = time.time() - 10
+
+    worker.receive_text("he")
+    worker.record_sample()
+    assert worker.samples != []
+
+    worker.reset_stats()
+
+    assert worker.samples == []
 

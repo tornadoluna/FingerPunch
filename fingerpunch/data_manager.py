@@ -13,7 +13,6 @@ class DataManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Create sessions table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +28,6 @@ class DataManager:
                 )
             ''')
 
-            # Create settings table for user preferences
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
@@ -38,7 +36,6 @@ class DataManager:
             ''')
 
 
-            # Create streaks table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS streaks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +91,6 @@ class DataManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Get total sessions
             cursor.execute('SELECT COUNT(*) FROM sessions')
             total_sessions = cursor.fetchone()[0]
 
@@ -108,7 +104,6 @@ class DataManager:
                     'total_time': 0
                 }
 
-            # Get averages and bests
             cursor.execute('''
                 SELECT
                     AVG(wpm), MAX(wpm),
@@ -210,19 +205,15 @@ class DataManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Best WPM
             cursor.execute('SELECT MAX(wpm), date FROM sessions')
             best_wpm_result = cursor.fetchone()
 
-            # Best accuracy
             cursor.execute('SELECT MAX(accuracy), date FROM sessions')
             best_accuracy_result = cursor.fetchone()
 
-            # Best efficiency
             cursor.execute('SELECT MAX(efficiency), date FROM sessions')
             best_efficiency_result = cursor.fetchone()
 
-            # Most characters typed
             cursor.execute('SELECT MAX(total_chars), date FROM sessions')
             most_chars_result = cursor.fetchone()
 
@@ -244,10 +235,8 @@ class DataManager:
                 'total_improvement': 0
             }
 
-        # Sort by date (oldest first)
         sessions_sorted = sorted(sessions, key=lambda x: x[1])
 
-        # Get first and last 10 sessions for comparison
         first_sessions = sessions_sorted[:min(10, len(sessions_sorted)//2)]
         last_sessions = sessions_sorted[-min(10, len(sessions_sorted)//2):]
 
@@ -259,7 +248,6 @@ class DataManager:
                 'total_improvement': 0
             }
 
-        # Calculate averages
         first_avg_wpm = sum(s[2] for s in first_sessions) / len(first_sessions)
         last_avg_wpm = sum(s[2] for s in last_sessions) / len(last_sessions)
         first_avg_accuracy = sum(s[3] for s in first_sessions) / len(first_sessions)
@@ -268,7 +256,6 @@ class DataManager:
         wpm_improvement = last_avg_wpm - first_avg_wpm
         accuracy_improvement = last_avg_accuracy - first_avg_accuracy
 
-        # Calculate consistency (lower standard deviation = more consistent)
         all_wpms = [s[2] for s in sessions_sorted[-20:]]  # Last 20 sessions
         if len(all_wpms) > 1:
             wpm_mean = sum(all_wpms) / len(all_wpms)
@@ -319,7 +306,6 @@ class DataManager:
         if not sessions:
             return []
 
-        # Group by day and calculate daily averages
         from collections import defaultdict
         daily_stats = defaultdict(list)
 
@@ -343,8 +329,6 @@ class DataManager:
 
         return trend_data
 
-    # ===== STREAK TRACKING =====
-
     def update_streaks(self):
         """Update daily streak information."""
         from datetime import timedelta
@@ -353,16 +337,13 @@ class DataManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Get today's sessions count
             cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (today,))
             today_sessions = cursor.fetchone()[0]
 
-            # Get yesterday's date
             yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
             cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (yesterday,))
             yesterday_sessions = cursor.fetchone()[0]
 
-            # Get current streak info
             cursor.execute('SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC LIMIT 1')
             streak_result = cursor.fetchone()
 
@@ -377,7 +358,6 @@ class DataManager:
                     current_streak = 0
                 longest_streak = max(prev_longest, current_streak)
 
-            # Insert/update today's streak
             cursor.execute('''
                 INSERT OR REPLACE INTO streaks (date, sessions_count, current_streak, longest_streak)
                 VALUES (?, ?, ?, ?)
@@ -416,8 +396,6 @@ class DataManager:
             ''')
             return cursor.fetchall()
 
-    # ===== PROGRESS INSIGHTS =====
-
     def get_progress_insights(self):
         """Generate comprehensive progress insights."""
         stats = self.get_session_stats()
@@ -433,7 +411,6 @@ class DataManager:
             'insights': []
         }
 
-        # Generate insights based on data
         if stats['total_sessions'] > 0:
             insights['insights'].append(f"You've completed {stats['total_sessions']} typing sessions!")
 

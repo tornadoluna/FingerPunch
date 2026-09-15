@@ -1,52 +1,75 @@
 import json
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from fingerpunch.paths import default_database_path
+
+
+def _migration_1_initial_schema(conn):
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            wpm REAL NOT NULL,
+            accuracy REAL NOT NULL,
+            time_taken REAL NOT NULL,
+            total_chars INTEGER NOT NULL,
+            keystrokes INTEGER NOT NULL,
+            efficiency REAL NOT NULL,
+            text_length INTEGER NOT NULL,
+            sample_text TEXT
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS streaks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            sessions_count INTEGER DEFAULT 0,
+            current_streak INTEGER DEFAULT 0,
+            longest_streak INTEGER DEFAULT 0
+        )
+    ''')
+
+
+def _migration_2_one_streak_row_per_day(conn):
+    conn.execute('''
+        DELETE FROM streaks
+        WHERE id NOT IN (SELECT MAX(id) FROM streaks GROUP BY date)
+    ''')
+    conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_streaks_date ON streaks(date)')
+
+
+MIGRATIONS = [
+    _migration_1_initial_schema,
+    _migration_2_one_streak_row_per_day,
+]
+SCHEMA_VERSION = len(MIGRATIONS)
 
 
 class DataManager:
-    def __init__(self, db_path="typingStats.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = str(db_path) if db_path is not None else str(default_database_path())
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self.init_db()
 
     def init_db(self):
-        """Initialize the database and create tables if they don't exist."""
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT NOT NULL,
-                    wpm REAL NOT NULL,
-                    accuracy REAL NOT NULL,
-                    time_taken REAL NOT NULL,
-                    total_chars INTEGER NOT NULL,
-                    keystrokes INTEGER NOT NULL,
-                    efficiency REAL NOT NULL,
-                    text_length INTEGER NOT NULL,
-                    sample_text TEXT
-                )
-            ''')
-
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            ''')
-
-
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS streaks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT NOT NULL,
-                    sessions_count INTEGER DEFAULT 0,
-                    current_streak INTEGER DEFAULT 0,
-                    longest_streak INTEGER DEFAULT 0
-                )
-            ''')
-
+            applied = conn.execute('PRAGMA user_version').fetchone()[0]
+            for index in range(applied, SCHEMA_VERSION):
+                MIGRATIONS[index](conn)
+                conn.execute(f'PRAGMA user_version = {index + 1:d}')
             conn.commit()
+
+    def schema_version(self):
+        with sqlite3.connect(self.db_path) as conn:
+            return conn.execute('PRAGMA user_version').fetchone()[0]
 
     def save_session(self, stats, sample_text=""):
         """Save a typing session to the database."""
@@ -255,8 +278,6 @@ class DataManager:
 
     def update_streaks(self):
         """Update daily streak information."""
-        from datetime import date, timedelta
-
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
@@ -326,12 +347,11 @@ class DataManager:
         """Get streak history for the last N days."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute(f'''
-                SELECT date, sessions_count, current_streak, MAX(id)
-                FROM streaks
-                WHERE date >= date('now', '-{days} days')
-                GROUP BY date
-                ORDER BY date
-            ''')
-            return [row[:3] for row in cursor.fetchall()]
+            cutoff = (datetime.now().date() - timedelta(days=days)).isoformat()
+            cursor.execute(
+                'SELECT date, sessions_count, current_streak FROM streaks'
+                ' WHERE date >= ? ORDER BY date',
+                (cutoff,),
+            )
+            return cursor.fetchall()
 

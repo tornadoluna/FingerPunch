@@ -79,15 +79,6 @@ class TestSaveAndRetrieve:
 
         assert [s[2] for s in db.get_all_sessions()] == [30.0, 20.0, 10.0]
 
-    def test_date_range_query_is_inclusive_of_both_ends(self, db):
-        insert_session_at(db, '2026-01-01T00:00:00', wpm=1.0)
-        insert_session_at(db, '2026-01-15T00:00:00', wpm=2.0)
-        insert_session_at(db, '2026-02-01T00:00:00', wpm=3.0)
-
-        found = db.get_sessions_by_date_range('2026-01-01T00:00:00', '2026-01-15T00:00:00')
-
-        assert sorted(s[2] for s in found) == [1.0, 2.0]
-
 
 class TestDeleteSession:
     def test_deleting_removes_only_that_session(self, db):
@@ -381,28 +372,6 @@ class TestExportImport:
         payload = json.loads(export_path.read_text())
         assert payload['stats']['total_sessions'] == 1
         assert len(payload['sessions']) == 1
-
-
-class TestProgressInsights:
-    def test_empty_database_produces_no_insights(self, db):
-        insights = db.get_progress_insights()
-
-        assert insights['insights'] == []
-        assert insights['stats']['total_sessions'] == 0
-
-    def test_session_count_is_reported(self, db):
-        db.save_session(make_stats())
-
-        insights = db.get_progress_insights()
-
-        assert any('1 typing sessions' in line for line in insights['insights'])
-
-    def test_century_club_is_awarded_at_100_wpm(self, db):
-        insert_session_at(db, '2026-01-01T10:00:00', wpm=105.0)
-
-        insights = db.get_progress_insights()
-
-        assert any('Century Club' in line for line in insights['insights'])
 
 
 class TestSchemaResilience:

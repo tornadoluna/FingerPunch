@@ -85,14 +85,6 @@ class DataManager:
             conn.commit()
             return cursor.rowcount > 0
 
-    def get_sessions_by_date_range(self, start_date, end_date):
-        """Get sessions within a date range."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM sessions WHERE date >= ? AND date <= ? ORDER BY date DESC',
-                         (start_date, end_date))
-            return cursor.fetchall()
-
     def get_session_stats(self):
         """Get aggregate statistics across all sessions."""
         with sqlite3.connect(self.db_path) as conn:
@@ -128,12 +120,6 @@ class DataManager:
                 'best_accuracy': round(best_accuracy, 1),
                 'total_time': round(total_time, 1)
             }
-
-    def get_recent_sessions(self, days=30):
-        """Get sessions from the last N days."""
-        from datetime import datetime, timedelta
-        start_date = (datetime.now() - timedelta(days=days)).isoformat()
-        return self.get_sessions_by_date_range(start_date, datetime.now().isoformat())
 
     def save_setting(self, key, value):
         """Save a user setting."""
@@ -176,19 +162,6 @@ class DataManager:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', session[1:])  # Skip id
             conn.commit()
-
-    def get_daily_activity(self, days=30):
-        """Get daily test activity for the last N days."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f'''
-                SELECT DATE(date) as day, COUNT(*) as tests
-                FROM sessions
-                WHERE date >= date('now', '-{days} days')
-                GROUP BY DATE(date)
-                ORDER BY day
-            ''')
-            return cursor.fetchall()
 
     def get_performance_by_length(self):
         """Get average performance grouped by text length."""
@@ -280,62 +253,6 @@ class DataManager:
             'total_improvement': round(total_improvement, 1)
         }
 
-    def get_time_based_stats(self, period='daily'):
-        """Get statistics grouped by time period."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-
-            if period == 'daily':
-                group_by = "DATE(date)"
-            elif period == 'weekly':
-                group_by = "strftime('%Y-%W', date)"
-            elif period == 'monthly':
-                group_by = "strftime('%Y-%m', date)"
-            else:
-                group_by = "DATE(date)"
-
-            cursor.execute(f'''
-                SELECT {group_by} as period,
-                       AVG(wpm) as avg_wpm,
-                       MAX(wpm) as max_wpm,
-                       AVG(accuracy) as avg_accuracy,
-                       COUNT(*) as test_count
-                FROM sessions
-                GROUP BY {group_by}
-                ORDER BY period
-            ''')
-
-            return cursor.fetchall()
-
-    def get_recent_performance_trend(self, days=7):
-        """Get recent performance trend for the last N days."""
-        sessions = self.get_recent_sessions(days)
-        if not sessions:
-            return []
-
-        from collections import defaultdict
-        daily_stats = defaultdict(list)
-
-        for session in sessions:
-            date = session[1][:10]  # Get date part only
-            daily_stats[date].append(session)
-
-        trend_data = []
-        for date in sorted(daily_stats.keys()):
-            day_sessions = daily_stats[date]
-            avg_wpm = sum(s[2] for s in day_sessions) / len(day_sessions)
-            avg_accuracy = sum(s[3] for s in day_sessions) / len(day_sessions)
-            test_count = len(day_sessions)
-
-            trend_data.append({
-                'date': date,
-                'avg_wpm': round(avg_wpm, 1),
-                'avg_accuracy': round(avg_accuracy, 1),
-                'test_count': test_count
-            })
-
-        return trend_data
-
     def update_streaks(self):
         """Update daily streak information."""
         from datetime import date, timedelta
@@ -418,39 +335,3 @@ class DataManager:
             ''')
             return [row[:3] for row in cursor.fetchall()]
 
-    def get_progress_insights(self):
-        """Generate comprehensive progress insights."""
-        stats = self.get_session_stats()
-        bests = self.get_personal_bests()
-        improvements = self.get_improvement_metrics()
-        streaks = self.get_streak_info()
-
-        insights = {
-            'stats': stats,
-            'bests': bests,
-            'improvements': improvements,
-            'streaks': streaks,
-            'insights': []
-        }
-
-        if stats['total_sessions'] > 0:
-            insights['insights'].append(f"You've completed {stats['total_sessions']} typing sessions!")
-
-            if improvements['wpm_improvement'] > 0:
-                insights['insights'].append(f"Your WPM has improved by {improvements['wpm_improvement']} over time!")
-            elif improvements['wpm_improvement'] < 0:
-                insights['insights'].append(f"Your WPM has decreased by {abs(improvements['wpm_improvement'])}. Keep practicing!")
-
-            if bests['best_wpm']['value'] >= 100:
-                insights['insights'].append("🏆 You're in the Century Club (100+ WPM)!")
-
-            if improvements['consistency_score'] > 80:
-                insights['insights'].append("🎯 You're very consistent in your typing speed!")
-
-            if streaks['current_streak'] >= 7:
-                insights['insights'].append(f"🔥 You're on a {streaks['current_streak']}-day streak!")
-
-            if streaks['longest_streak'] >= 30:
-                insights['insights'].append(f"💪 Your longest streak is {streaks['longest_streak']} days!")
-
-        return insights

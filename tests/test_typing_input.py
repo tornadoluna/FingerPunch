@@ -1,5 +1,3 @@
-"""Tests for the typing input area, which must not accept pasted text."""
-
 import sqlite3
 
 import pytest

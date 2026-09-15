@@ -78,6 +78,13 @@ class DataManager:
                 cursor.execute('SELECT * FROM sessions ORDER BY date DESC')
             return cursor.fetchall()
 
+    def delete_session(self, session_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
     def get_sessions_by_date_range(self, start_date, end_date):
         """Get sessions within a date range."""
         with sqlite3.connect(self.db_path) as conn:

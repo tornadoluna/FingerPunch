@@ -89,6 +89,59 @@ class TestSaveAndRetrieve:
         assert sorted(s[2] for s in found) == [1.0, 2.0]
 
 
+class TestDeleteSession:
+    def test_deleting_removes_only_that_session(self, db):
+        db.save_session(make_stats(wpm=40.0))
+        db.save_session(make_stats(wpm=90.0))
+        doomed = db.get_all_sessions()[0][0]
+
+        assert db.delete_session(doomed) is True
+
+        remaining = db.get_all_sessions()
+        assert len(remaining) == 1
+        assert remaining[0][0] != doomed
+
+    def test_deleting_a_missing_session_reports_nothing_removed(self, db):
+        db.save_session(make_stats())
+
+        assert db.delete_session(9999) is False
+        assert len(db.get_all_sessions()) == 1
+
+    def test_deleting_from_an_empty_database_is_harmless(self, db):
+        assert db.delete_session(1) is False
+
+    def test_aggregates_reflect_the_deletion(self, db):
+        db.save_session(make_stats(wpm=40.0))
+        db.save_session(make_stats(wpm=900.0))
+        outlier = next(s[0] for s in db.get_all_sessions() if s[2] == 900.0)
+
+        db.delete_session(outlier)
+
+        assert db.get_session_stats()["best_wpm"] == 40.0
+
+    def test_personal_bests_reflect_the_deletion(self, db):
+        db.save_session(make_stats(wpm=40.0))
+        db.save_session(make_stats(wpm=900.0))
+        outlier = next(s[0] for s in db.get_all_sessions() if s[2] == 900.0)
+
+        db.delete_session(outlier)
+
+        assert db.get_personal_bests()["best_wpm"]["value"] == 40.0
+
+    def test_streaks_recalculate_after_a_deletion(self, db):
+        insert_session_at(db, (datetime.now() - timedelta(days=1)).isoformat())
+        insert_session_at(db, datetime.now().isoformat())
+        db.update_streaks()
+        assert db.get_streak_info()["current_streak"] == 2
+
+        today = datetime.now().date().isoformat()
+        doomed = next(s[0] for s in db.get_all_sessions() if s[1].startswith(today))
+        db.delete_session(doomed)
+        db.update_streaks()
+
+        assert db.get_streak_info()["current_streak"] == 0
+
+
 class TestSessionStats:
     def test_empty_database_returns_zeros_rather_than_none(self, db):
         stats = db.get_session_stats()

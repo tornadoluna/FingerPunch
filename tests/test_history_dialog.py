@@ -165,11 +165,6 @@ class TestSummaryLine:
 
 
 class TestProgressTab:
-    @pytest.mark.xfail(
-        strict=True,
-        reason="get_personal_bests always returns a populated dict, so the empty-state "
-               "branch in _build_personal_bests is unreachable and zeros are shown instead",
-    )
     def test_an_empty_database_explains_there_are_no_bests_yet(self, dialog, db):
         widget = dialog(db)
 
@@ -183,6 +178,14 @@ class TestProgressTab:
         texts = [label.text() for label in widget.findChildren(QLabel)]
         assert "Best WPM:" in texts
         assert "77.0" in texts
+
+    def test_a_session_scoring_zero_still_counts_as_having_bests(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat(), wpm=0.0, accuracy=0.0, efficiency=0.0)
+        widget = dialog(db)
+
+        texts = [label.text() for label in widget.findChildren(QLabel)]
+        assert not any("No personal bests yet" in text for text in texts)
+        assert "Best WPM:" in texts
 
     def test_the_current_and_longest_streak_are_shown(self, dialog, db):
         insert_session_at(db, (datetime.now() - timedelta(days=1)).isoformat())

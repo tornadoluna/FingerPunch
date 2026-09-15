@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStyle,
     QTextBrowser,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -26,6 +25,7 @@ from fingerpunch.text_generator import generate_mixed_text
 from fingerpunch.ui import styles
 from fingerpunch.ui.history_dialog import HistoryDialog
 from fingerpunch.ui.results_dialog import NEW_TEXT_RESULT, ResultsDialog
+from fingerpunch.ui.widgets import TypingInput
 
 
 def show_message(parent: QWidget, title: str, message: str) -> None:
@@ -125,7 +125,7 @@ class TypingPracticeApp(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 20, 16, 16)
 
-        self.input_edit = QTextEdit()
+        self.input_edit = TypingInput()
         self.input_edit.setFont(styles.ui_font(16))
         self.input_edit.setStyleSheet(styles.text_surface_style())
         self.input_edit.setMinimumHeight(140)

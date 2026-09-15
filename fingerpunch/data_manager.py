@@ -331,37 +331,49 @@ class DataManager:
 
     def update_streaks(self):
         """Update daily streak information."""
-        from datetime import timedelta
-        today = datetime.now().date().isoformat()
+        from datetime import date, timedelta
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (today,))
+            cursor.execute('SELECT DISTINCT DATE(date) FROM sessions')
+            active_days = {date.fromisoformat(row[0]) for row in cursor.fetchall() if row[0]}
+
+            today = datetime.now().date()
+            cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (today.isoformat(),))
             today_sessions = cursor.fetchone()[0]
 
-            yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
-            cursor.execute('SELECT COUNT(*) FROM sessions WHERE DATE(date) = ?', (yesterday,))
-            yesterday_sessions = cursor.fetchone()[0]
+            current_streak = 0
+            day = today
+            while day in active_days:
+                current_streak += 1
+                day -= timedelta(days=1)
 
-            cursor.execute('SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC LIMIT 1')
-            streak_result = cursor.fetchone()
+            longest_streak = 0
+            run = 0
+            previous = None
+            for day in sorted(active_days):
+                run = run + 1 if previous is not None and day - previous == timedelta(days=1) else 1
+                longest_streak = max(longest_streak, run)
+                previous = day
 
-            current_streak = 1 if today_sessions > 0 else 0
-            longest_streak = current_streak
-
-            if streak_result:
-                prev_current, prev_longest = streak_result
-                if yesterday_sessions > 0 and today_sessions > 0:
-                    current_streak = prev_current + 1
-                elif today_sessions == 0:
-                    current_streak = 0
-                longest_streak = max(prev_longest, current_streak)
-
-            cursor.execute('''
-                INSERT OR REPLACE INTO streaks (date, sessions_count, current_streak, longest_streak)
-                VALUES (?, ?, ?, ?)
-            ''', (today, today_sessions, current_streak, longest_streak))
+            cursor.execute(
+                'SELECT id FROM streaks WHERE date = ? ORDER BY id DESC LIMIT 1',
+                (today.isoformat(),),
+            )
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute(
+                    'UPDATE streaks SET sessions_count = ?, current_streak = ?, longest_streak = ?'
+                    ' WHERE date = ?',
+                    (today_sessions, current_streak, longest_streak, today.isoformat()),
+                )
+            else:
+                cursor.execute(
+                    'INSERT INTO streaks (date, sessions_count, current_streak, longest_streak)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (today.isoformat(), today_sessions, current_streak, longest_streak),
+                )
 
             conn.commit()
 
@@ -369,7 +381,9 @@ class DataManager:
         """Get current streak information."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC LIMIT 1')
+            cursor.execute(
+                'SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC, id DESC LIMIT 1'
+            )
             result = cursor.fetchone()
 
             if result:
@@ -389,12 +403,13 @@ class DataManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(f'''
-                SELECT date, sessions_count, current_streak 
-                FROM streaks 
+                SELECT date, sessions_count, current_streak, MAX(id)
+                FROM streaks
                 WHERE date >= date('now', '-{days} days')
+                GROUP BY date
                 ORDER BY date
             ''')
-            return cursor.fetchall()
+            return [row[:3] for row in cursor.fetchall()]
 
     def get_progress_insights(self):
         """Generate comprehensive progress insights."""

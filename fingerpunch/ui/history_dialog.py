@@ -310,7 +310,7 @@ class HistoryDialog(QDialog):
 
     def _build_personal_bests(self, layout: QVBoxLayout) -> None:
         bests = self.data_manager.get_personal_bests()
-        if not bests:
+        if not any(best["date"] for best in bests.values()):
             label = QLabel("No personal bests yet. Complete some sessions to generate personal bests.")
             label.setFont(styles.ui_font(12))
             label.setStyleSheet(f"color: {styles.TEXT_SECONDARY};")

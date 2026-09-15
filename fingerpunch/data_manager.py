@@ -1,12 +1,76 @@
+from __future__ import annotations
+
 import json
 import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any, NamedTuple, TypedDict
 
 from fingerpunch.paths import default_database_path
 
 
-def _migration_1_initial_schema(conn):
+class Session(NamedTuple):
+    id: int
+    date: str
+    wpm: float
+    accuracy: float
+    time_taken: float
+    total_chars: int
+    keystrokes: int
+    efficiency: float
+    text_length: int
+    sample_text: str
+
+
+class SessionStats(TypedDict):
+    total_sessions: int
+    avg_wpm: float
+    best_wpm: float
+    avg_accuracy: float
+    best_accuracy: float
+    total_time: float
+
+
+class PersonalBest(TypedDict):
+    value: float
+    date: str | None
+
+
+class PersonalBests(TypedDict):
+    best_wpm: PersonalBest
+    best_accuracy: PersonalBest
+    best_efficiency: PersonalBest
+    most_chars: PersonalBest
+
+
+class ImprovementMetrics(TypedDict):
+    wpm_improvement: float
+    accuracy_improvement: float
+    consistency_score: float
+    total_improvement: float
+
+
+class StreakInfo(TypedDict):
+    current_streak: int
+    longest_streak: int
+
+
+class LengthPerformance(NamedTuple):
+    text_length: int
+    avg_wpm: float
+    best_wpm: float
+    avg_accuracy: float
+    best_accuracy: float
+    test_count: int
+
+
+class StreakDay(NamedTuple):
+    date: str
+    sessions_count: int
+    current_streak: int
+
+
+def _migration_1_initial_schema(conn: sqlite3.Connection) -> None:
     conn.execute('''
         CREATE TABLE IF NOT EXISTS sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +102,7 @@ def _migration_1_initial_schema(conn):
     ''')
 
 
-def _migration_2_one_streak_row_per_day(conn):
+def _migration_2_one_streak_row_per_day(conn: sqlite3.Connection) -> None:
     conn.execute('''
         DELETE FROM streaks
         WHERE id NOT IN (SELECT MAX(id) FROM streaks GROUP BY date)
@@ -54,12 +118,12 @@ SCHEMA_VERSION = len(MIGRATIONS)
 
 
 class DataManager:
-    def __init__(self, db_path=None):
+    def __init__(self, db_path: str | Path | None = None) -> None:
         self.db_path = str(db_path) if db_path is not None else str(default_database_path())
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self.init_db()
 
-    def init_db(self):
+    def init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             applied = conn.execute('PRAGMA user_version').fetchone()[0]
             for index in range(applied, SCHEMA_VERSION):
@@ -67,12 +131,12 @@ class DataManager:
                 conn.execute(f'PRAGMA user_version = {index + 1:d}')
             conn.commit()
 
-    def schema_version(self):
+    def schema_version(self) -> int:
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute('PRAGMA user_version').fetchone()[0]
 
-    def save_session(self, stats, sample_text=""):
-        """Save a typing session to the database."""
+    def save_session(self, stats: dict[str, Any], sample_text: str = "") -> None:
+        """Stores only the first 200 characters of sample_text."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -91,25 +155,32 @@ class DataManager:
             ))
             conn.commit()
 
-    def get_all_sessions(self, limit=None):
-        """Get all sessions ordered by date descending."""
+    def get_all_sessions(self, limit: int | None = None) -> list[Session]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             if limit:
-                cursor.execute('SELECT * FROM sessions ORDER BY date DESC LIMIT ?', (limit,))
+                cursor.execute(
+                    'SELECT id, date, wpm, accuracy, time_taken, total_chars, keystrokes,'
+                    ' efficiency, text_length, sample_text'
+                    ' FROM sessions ORDER BY date DESC LIMIT ?',
+                    (limit,),
+                )
             else:
-                cursor.execute('SELECT * FROM sessions ORDER BY date DESC')
-            return cursor.fetchall()
+                cursor.execute(
+                    'SELECT id, date, wpm, accuracy, time_taken, total_chars, keystrokes,'
+                    ' efficiency, text_length, sample_text'
+                    ' FROM sessions ORDER BY date DESC'
+                )
+            return [Session(*row) for row in cursor.fetchall()]
 
-    def delete_session(self, session_id):
+    def delete_session(self, session_id: int) -> bool:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
             conn.commit()
             return cursor.rowcount > 0
 
-    def get_session_stats(self):
-        """Get aggregate statistics across all sessions."""
+    def get_session_stats(self) -> SessionStats:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
@@ -144,16 +215,14 @@ class DataManager:
                 'total_time': round(total_time, 1)
             }
 
-    def save_setting(self, key, value):
-        """Save a user setting."""
+    def save_setting(self, key: str, value: Any) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
                          (key, json.dumps(value)))
             conn.commit()
 
-    def get_setting(self, key, default=None):
-        """Get a user setting."""
+    def get_setting(self, key: str, default: Any = None) -> Any:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
@@ -162,8 +231,7 @@ class DataManager:
                 return json.loads(result[0])
             return default
 
-    def export_data(self, filepath):
-        """Export all data to a JSON file."""
+    def export_data(self, filepath: str | Path) -> None:
         data = {
             'sessions': self.get_all_sessions(),
             'stats': self.get_session_stats()
@@ -171,23 +239,33 @@ class DataManager:
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2)
 
-    def import_data(self, filepath):
-        """Import data from a JSON file."""
+    def import_data(self, filepath: str | Path) -> None:
+        """Rows are inserted with fresh ids; existing rows are left untouched."""
         with open(filepath, 'r') as f:
             data = json.load(f)
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            for session in data.get('sessions', []):
+            for row in data.get('sessions', []):
+                session = Session(*row[:len(Session._fields)])
                 cursor.execute('''
                     INSERT OR IGNORE INTO sessions
                     (date, wpm, accuracy, time_taken, total_chars, keystrokes, efficiency, text_length, sample_text)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', session[1:])  # Skip id
+                ''', (
+                    session.date,
+                    session.wpm,
+                    session.accuracy,
+                    session.time_taken,
+                    session.total_chars,
+                    session.keystrokes,
+                    session.efficiency,
+                    session.text_length,
+                    session.sample_text,
+                ))
             conn.commit()
 
-    def get_performance_by_length(self):
-        """Get average performance grouped by text length."""
+    def get_performance_by_length(self) -> list[LengthPerformance]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -201,10 +279,10 @@ class DataManager:
                 GROUP BY text_length
                 ORDER BY text_length
             ''')
-            return cursor.fetchall()
+            return [LengthPerformance(*row) for row in cursor.fetchall()]
 
-    def get_personal_bests(self):
-        """Get personal best performances."""
+    def get_personal_bests(self) -> PersonalBests:
+        """Always returns all four keys, with a value of 0 and no date when unset."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
@@ -227,8 +305,7 @@ class DataManager:
                 'most_chars': {'value': most_chars_result[0] if most_chars_result[0] else 0, 'date': most_chars_result[1] if most_chars_result[1] else None}
             }
 
-    def get_improvement_metrics(self):
-        """Calculate improvement metrics over time."""
+    def get_improvement_metrics(self) -> ImprovementMetrics:
         sessions = self.get_all_sessions()
         if len(sessions) < 2:
             return {
@@ -276,8 +353,8 @@ class DataManager:
             'total_improvement': round(total_improvement, 1)
         }
 
-    def update_streaks(self):
-        """Update daily streak information."""
+    def update_streaks(self) -> None:
+        """Derived from the distinct session dates, so it is idempotent and repairs bad rows."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
@@ -322,8 +399,7 @@ class DataManager:
 
             conn.commit()
 
-    def get_streak_info(self):
-        """Get current streak information."""
+    def get_streak_info(self) -> StreakInfo:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -343,8 +419,7 @@ class DataManager:
                     'longest_streak': 0
                 }
 
-    def get_streak_history(self, days=30):
-        """Get streak history for the last N days."""
+    def get_streak_history(self, days: int = 30) -> list[StreakDay]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cutoff = (datetime.now().date() - timedelta(days=days)).isoformat()
@@ -353,5 +428,5 @@ class DataManager:
                 ' WHERE date >= ? ORDER BY date',
                 (cutoff,),
             )
-            return cursor.fetchall()
+            return [StreakDay(*row) for row in cursor.fetchall()]
 

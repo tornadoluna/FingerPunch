@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QLabel, QTextBrowser
 
-from fingerpunch.data_manager import DataManager
+from fingerpunch.data_manager import DataManager, Session
 from fingerpunch.ui import history_dialog
 from fingerpunch.ui.history_dialog import SESSION_COLUMNS, HistoryDialog
 
@@ -33,8 +33,8 @@ def insert_session_at(db, date, wpm=50.0, accuracy=95.0, text_length=100,
 
 def session_row(date="2026-03-01T14:30:00", wpm=50.0, accuracy=95.0, time_taken=30.0,
                 total_chars=200, keystrokes=210, efficiency=90.0, text_length=100):
-    return (1, date, wpm, accuracy, time_taken, total_chars, keystrokes, efficiency,
-            text_length, "sample text")
+    return Session(1, date, wpm, accuracy, time_taken, total_chars, keystrokes, efficiency,
+                   text_length, "sample text")
 
 
 @pytest.fixture

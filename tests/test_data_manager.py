@@ -6,7 +6,14 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from fingerpunch.data_manager import MIGRATIONS, SCHEMA_VERSION, DataManager
+from fingerpunch.data_manager import (
+    MIGRATIONS,
+    SCHEMA_VERSION,
+    DataManager,
+    LengthPerformance,
+    Session,
+    StreakDay,
+)
 
 
 @pytest.fixture
@@ -96,6 +103,79 @@ def legacy_database(path):
         )
         conn.commit()
     return path
+
+
+class TestRowTypes:
+    def test_sessions_come_back_as_named_rows(self, db):
+        db.save_session(make_stats(wpm=61.25, accuracy=93.46), "sample text")
+
+        session = db.get_all_sessions()[0]
+
+        assert isinstance(session, Session)
+        assert session.wpm == 61.25
+        assert session.accuracy == 93.46
+        assert session.sample_text == "sample text"
+
+    def test_named_and_positional_access_agree(self, db):
+        db.save_session(make_stats())
+
+        session = db.get_all_sessions()[0]
+
+        assert session[1] == session.date
+        assert session[2] == session.wpm
+        assert session[7] == session.efficiency
+
+    def test_performance_by_length_rows_are_named(self, db):
+        insert_session_at(db, datetime.now().isoformat(), text_length=50)
+
+        row = db.get_performance_by_length()[0]
+
+        assert isinstance(row, LengthPerformance)
+        assert row.text_length == 50
+        assert row.test_count == 1
+
+    def test_streak_history_rows_are_named(self, db):
+        db.update_streaks()
+
+        row = db.get_streak_history(30)[0]
+
+        assert isinstance(row, StreakDay)
+        assert row.date == datetime.now().date().isoformat()
+
+    def test_a_new_column_does_not_disturb_the_session_row(self, db):
+        db.save_session(make_stats(wpm=61.25), "sample text")
+        with sqlite3.connect(db.db_path) as conn:
+            conn.execute('ALTER TABLE sessions ADD COLUMN hand_position_score REAL')
+            conn.commit()
+
+        session = db.get_all_sessions()[0]
+
+        assert len(session) == len(Session._fields)
+        assert session.wpm == 61.25
+        assert session.sample_text == "sample text"
+
+    def test_export_and_import_survive_a_new_column(self, db, tmp_path):
+        db.save_session(make_stats(wpm=61.25), "sample text")
+        for target in (db, ):
+            with sqlite3.connect(target.db_path) as conn:
+                conn.execute('ALTER TABLE sessions ADD COLUMN hand_position_score REAL')
+                conn.commit()
+        export = tmp_path / "export.json"
+        db.export_data(str(export))
+
+        fresh = DataManager(str(tmp_path / "fresh.db"))
+        with sqlite3.connect(fresh.db_path) as conn:
+            conn.execute('ALTER TABLE sessions ADD COLUMN hand_position_score REAL')
+            conn.commit()
+        fresh.import_data(str(export))
+
+        imported = fresh.get_all_sessions()
+        assert len(imported) == 1
+        original = db.get_all_sessions()[0]
+        for field in Session._fields:
+            if field == "id":
+                continue
+            assert getattr(imported[0], field) == getattr(original, field), field
 
 
 class TestMigrations:
@@ -513,6 +593,25 @@ class TestStreakHistoryWindow:
 
 
 class TestExportImport:
+    def test_every_field_survives_the_round_trip(self, db, tmp_path):
+        db.save_session(
+            make_stats(wpm=61.25, accuracy=93.46, time=41.5, total_chars=237,
+                       keystrokes=259, efficiency=88.4),
+            "a distinctive sample",
+        )
+        export = tmp_path / "export.json"
+        db.export_data(str(export))
+
+        fresh = DataManager(str(tmp_path / "fresh.db"))
+        fresh.import_data(str(export))
+
+        original = db.get_all_sessions()[0]
+        imported = fresh.get_all_sessions()[0]
+        for field in Session._fields:
+            if field == "id":
+                continue
+            assert getattr(imported, field) == getattr(original, field), field
+
     def test_exported_data_can_be_imported_into_a_fresh_database(self, db, tmp_path):
         db.save_session(make_stats(wpm=55.0), 'hello')
         db.save_session(make_stats(wpm=65.0), 'world')

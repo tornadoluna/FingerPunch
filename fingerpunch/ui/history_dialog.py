@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from fingerpunch.data_manager import DataManager
+from fingerpunch.data_manager import DataManager, Session
 from fingerpunch.ui import styles
 from fingerpunch.ui.widgets import confirm
 
@@ -159,16 +159,16 @@ class HistoryDialog(QDialog):
         return widget
 
     @staticmethod
-    def _session_cells(session: list) -> list[str]:
-        date_obj = datetime.fromisoformat(session[1])
+    def _session_cells(session: Session) -> list[str]:
+        date_obj = datetime.fromisoformat(session.date)
         return [
             date_obj.strftime("%Y-%m-%d"),
             date_obj.strftime("%H:%M"),
-            f"{session[2]:.1f}",
-            f"{session[3]:.1f}%",
-            f"{session[5]}",
-            f"{session[6]}",
-            f"{session[7]:.1f}%",
+            f"{session.wpm:.1f}",
+            f"{session.accuracy:.1f}%",
+            f"{session.total_chars}",
+            f"{session.keystrokes}",
+            f"{session.efficiency:.1f}%",
         ]
 
     def _populate_sessions_table(self) -> None:
@@ -178,7 +178,7 @@ class HistoryDialog(QDialog):
             for column, text in enumerate(self._session_cells(session)):
                 item = QTableWidgetItem(text)
                 if column == 0:
-                    item.setData(Qt.UserRole, session[0])
+                    item.setData(Qt.UserRole, session.id)
                 self.sessions_table.setItem(row, column, item)
         self._update_delete_button()
 
@@ -244,9 +244,9 @@ class HistoryDialog(QDialog):
             if not sessions:
                 return
 
-            dates = [datetime.fromisoformat(session[1]) for session in sessions]
-            wpms = [session[2] for session in sessions]
-            accuracies = [session[3] for session in sessions]
+            dates = [datetime.fromisoformat(session.date) for session in sessions]
+            wpms = [session.wpm for session in sessions]
+            accuracies = [session.accuracy for session in sessions]
 
             ax = self.analytics_canvas.figure.add_subplot(111)
             ax.plot(dates, wpms, label="WPM", color=styles.SUCCESS, marker="o")
@@ -272,14 +272,14 @@ class HistoryDialog(QDialog):
 
             cutoff_date = datetime.now() - timedelta(days=30)
             recent_sessions = [
-                session for session in sessions if datetime.fromisoformat(session[1]) >= cutoff_date
+                session for session in sessions if datetime.fromisoformat(session.date) >= cutoff_date
             ]
             if not recent_sessions:
                 return
 
-            dates = [datetime.fromisoformat(session[1]) for session in recent_sessions]
-            wpms = [session[2] for session in recent_sessions]
-            accuracies = [session[3] for session in recent_sessions]
+            dates = [datetime.fromisoformat(session.date) for session in recent_sessions]
+            wpms = [session.wpm for session in recent_sessions]
+            accuracies = [session.accuracy for session in recent_sessions]
 
             ax = self.analytics_canvas.figure.add_subplot(111)
             ax.plot(dates, wpms, label="WPM", color=styles.SUCCESS, marker="o")
@@ -303,11 +303,11 @@ class HistoryDialog(QDialog):
             if not length_data:
                 return
 
-            lengths = [row[0] for row in length_data]
-            avg_wpms = [row[1] for row in length_data]
-            best_wpms = [row[2] for row in length_data]
-            avg_accuracies = [row[3] for row in length_data]
-            best_accuracies = [row[4] for row in length_data]
+            lengths = [row.text_length for row in length_data]
+            avg_wpms = [row.avg_wpm for row in length_data]
+            best_wpms = [row.best_wpm for row in length_data]
+            avg_accuracies = [row.avg_accuracy for row in length_data]
+            best_accuracies = [row.best_accuracy for row in length_data]
 
             ax1 = self.analytics_canvas.figure.add_subplot(111)
 
@@ -475,8 +475,10 @@ class HistoryDialog(QDialog):
         if streak_history:
             history_text = "Recent Streak History:\n\n"
             for streak in streak_history[-7:]:
-                date, sessions_count, current_streak = streak
-                history_text += f"{date}: {sessions_count} sessions (streak: {current_streak})\n"
+                history_text += (
+                    f"{streak.date}: {streak.sessions_count} sessions"
+                    f" (streak: {streak.current_streak})\n"
+                )
 
             history_browser = QTextBrowser()
             history_browser.setFont(styles.ui_font(12))

@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 530 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 538 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -193,6 +193,11 @@ USB webcams are bandwidth limited in raw mode and commonly cap at 640x480
 there while offering far more in MJPG. Whatever the driver actually grants is
 logged, since asking is not the same as receiving.
 
+Some devices advertise MJPG but produce a stream libjpeg cannot decode cleanly.
+The camera checks the first few frames when it opens, and falls back to the
+driver's own format if they come back damaged, so a bad MJPG implementation
+costs a moment at startup rather than a broken picture and a flooded log.
+
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands
 - Finger Mapping: App will guide optimal finger placement
@@ -270,7 +275,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 530 automated tests
+- Overall: 99% across 538 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

@@ -5,6 +5,8 @@ from typing import Any, Protocol, TypedDict
 
 from PySide6.QtCore import QObject, Signal
 
+from fingerpunch.text_diff import dirty_range
+
 
 class TypingSession(Protocol):
     sample_text: str
@@ -42,6 +44,7 @@ class StatsWorker(QObject):
         self.additions = 0
         self.correct_char_events = 0
         self.total_char_events = 0
+        self.correct_chars = 0
         self.samples: list[SampleDict] = []
         self.app.text_updated.connect(self.receive_text)
 
@@ -50,14 +53,20 @@ class StatsWorker(QObject):
         self._update_keystroke_stats()
 
     def _final_correct_chars(self) -> int:
-        typed_length = len(self.current_text)
-        sample_length = len(self.app.sample_text)
+        return self.correct_chars
 
-        return sum(
-            1
-            for i in range(min(typed_length, sample_length))
-            if self.current_text[i] == self.app.sample_text[i]
-        )
+    def _update_correct_chars(self) -> None:
+        sample = self.app.sample_text
+        previous = self.previous_text
+        current = self.current_text
+
+        start, end = dirty_range(previous, current, len(sample))
+
+        for i in range(start, end):
+            if i < len(previous) and previous[i] == sample[i]:
+                self.correct_chars -= 1
+            if i < len(current) and current[i] == sample[i]:
+                self.correct_chars += 1
 
     def _accuracy(self) -> float:
         if self.total_char_events == 0:
@@ -113,7 +122,8 @@ class StatsWorker(QObject):
             self.deletions += chars_deleted
             self.total_keystrokes += chars_deleted
 
-        correct_chars = self._final_correct_chars()
+        self._update_correct_chars()
+        correct_chars = self.correct_chars
         accuracy = self._accuracy()
 
         if self.app.start_time:
@@ -129,13 +139,15 @@ class StatsWorker(QObject):
         self.additions = 0
         self.correct_char_events = 0
         self.total_char_events = 0
+        self.correct_chars = 0
         self.samples = []
         self.previous_text = ""
         self.current_text = ""
 
     def get_final_stats(self) -> StatsDict:
         typed_length = len(self.current_text)
-        correct_chars = self._final_correct_chars()
+        self._update_correct_chars()
+        correct_chars = self.correct_chars
         accuracy = self._accuracy()
 
         if self.app.start_time:

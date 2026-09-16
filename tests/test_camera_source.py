@@ -164,3 +164,73 @@ class TestOpenCVImport:
 
         with pytest.raises(CameraUnavailable, match="OpenCV is not installed"):
             load_opencv()
+
+
+class TestQuietOpenCV:
+    def test_it_restores_the_previous_log_level(self):
+        import cv2
+
+        from fingerpunch.camera.source import quiet_opencv
+
+        before = cv2.utils.logging.getLogLevel()
+        with quiet_opencv():
+            during = cv2.utils.logging.getLogLevel()
+
+        assert during == cv2.utils.logging.LOG_LEVEL_SILENT
+        assert cv2.utils.logging.getLogLevel() == before
+
+    def test_stderr_is_restored_afterwards(self):
+        import os
+
+        from fingerpunch.camera.source import quiet_opencv
+
+        before = os.fstat(2)
+        with quiet_opencv():
+            pass
+
+        assert os.fstat(2) == before
+
+    def test_it_is_a_no_op_when_opencv_cannot_be_imported(self, monkeypatch):
+        import builtins
+
+        from fingerpunch.camera.source import quiet_opencv
+
+        real_import = builtins.__import__
+
+        def refuse(name, *args, **kwargs):
+            if name == "cv2":
+                raise ImportError("no cv2")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", refuse)
+
+        with quiet_opencv():
+            entered = True
+
+        assert entered
+
+    def test_it_is_a_no_op_when_opencv_has_no_logging_module(self, monkeypatch):
+        import sys
+        import types
+
+        from fingerpunch.camera.source import quiet_opencv
+
+        stub = types.ModuleType("cv2")
+        monkeypatch.setitem(sys.modules, "cv2", stub)
+
+        with quiet_opencv():
+            entered = True
+
+        assert entered
+
+    def test_the_log_level_is_restored_even_if_the_body_raises(self):
+        import cv2
+        import pytest as _pytest
+
+        from fingerpunch.camera.source import quiet_opencv
+
+        before = cv2.utils.logging.getLogLevel()
+        with _pytest.raises(ValueError), quiet_opencv():
+            raise ValueError("boom")
+
+        assert cv2.utils.logging.getLogLevel() == before

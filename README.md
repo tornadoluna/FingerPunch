@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 489 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 499 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -179,9 +179,13 @@ to the path above to keep your history.
 ### Choosing a Camera
 The camera is off by default. Enable it in the CAMERA panel, and if the wrong
 input is used, press **Detect** to list the cameras attached to the machine and
-pick one from the dropdown. The choice is saved and reused next time, so
-plugging in a webcam only needs sorting out once. Detection is only run when you
-press the button, so no camera is opened without you asking for it.
+pick one from the dropdown. Each entry shows its resolution, which helps when a
+machine exposes several nodes for the same physical camera. The choice is saved
+and reused next time, so plugging in a webcam only needs sorting out once.
+
+Detection runs only when you press the button, so no camera is opened without
+you asking for it, and a device is listed only if it actually delivers a frame
+rather than merely opening.
 
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands
@@ -260,7 +264,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 489 automated tests
+- Overall: 99% across 499 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

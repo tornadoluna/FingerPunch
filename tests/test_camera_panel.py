@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QObject, Signal
 
+from fingerpunch.camera.devices import CameraDevice
 from fingerpunch.camera.image import frame_to_image
 from fingerpunch.camera.source import Frame
 from fingerpunch.ui import camera_panel
@@ -59,7 +60,7 @@ def panel(qapp):
         controllers.append(controller)
         return controller
 
-    widget = CameraPanel(controller_factory=factory, probe=lambda: [0, 1, 2])
+    widget = CameraPanel(controller_factory=factory, probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1, 2)])
     widget._controllers = controllers
     widget._fake = controllers[0]
     yield widget
@@ -88,7 +89,7 @@ class TestDeviceSelection:
         panel.detect_devices()
 
         labels = [panel.device_combo.itemText(i) for i in range(panel.device_combo.count())]
-        assert labels == ["Camera 0", "Camera 1", "Camera 2"]
+        assert labels == ["Camera 0 (640x480)", "Camera 1 (640x480)", "Camera 2 (640x480)"]
 
     def test_detecting_nothing_reports_it(self, qapp):
         widget = CameraPanel(controller_factory=lambda i: FakeController(), probe=list)
@@ -111,7 +112,7 @@ class TestDeviceSelection:
         widget = CameraPanel(
             settings=settings,
             controller_factory=lambda i: FakeController(),
-            probe=lambda: [0, 1],
+            probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1)],
         )
         widget.detect_devices()
 
@@ -152,7 +153,7 @@ class TestDeviceSelection:
         widget = CameraPanel(
             settings=settings,
             controller_factory=lambda i: FakeController(),
-            probe=lambda: [0, 1],
+            probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1)],
         )
 
         widget.detect_devices()

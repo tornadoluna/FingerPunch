@@ -121,14 +121,15 @@ class CameraPanel(QGroupBox):
             self._set_status(NO_DEVICES_MESSAGE, styles.DANGER)
             return
 
+        indices = [device.index for device in found]
         self.device_combo.blockSignals(True)
         self.device_combo.clear()
-        for index in found:
-            self.device_combo.addItem(f"Camera {index}", index)
-        if self.device_index in found:
-            self.device_combo.setCurrentIndex(found.index(self.device_index))
+        for device in found:
+            self.device_combo.addItem(device.label, device.index)
+        if self.device_index in indices:
+            self.device_combo.setCurrentIndex(indices.index(self.device_index))
         else:
-            self._select_device(found[0])
+            self._select_device(indices[0])
         self.device_combo.blockSignals(False)
 
         self._set_status(f"Found {len(found)} camera(s)", styles.TEXT_SECONDARY)

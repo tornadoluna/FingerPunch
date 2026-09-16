@@ -2,17 +2,20 @@ import pytest
 
 from fingerpunch.camera.devices import (
     DEVICE_SETTING,
+    CameraDevice,
+    delivers_frames,
     probe_devices,
     remember_device_index,
     saved_device_index,
 )
-from fingerpunch.camera.source import CameraUnavailable
+from fingerpunch.camera.source import CameraUnavailable, Frame
 
 
 class StubCamera:
-    def __init__(self, index, working):
+    def __init__(self, index, working, delivers=True):
         self.index = index
         self.working = working
+        self.delivers = delivers
         self.closed = False
 
     def open(self):
@@ -20,15 +23,19 @@ class StubCamera:
             raise CameraUnavailable(f"No camera found at index {self.index}")
 
     def read(self):
-        return None
+        if not self.delivers:
+            return None
+        return Frame(0.0, 640, 480, object())
 
     def close(self):
         self.closed = True
 
 
-def factory_for(working_indices, created=None):
+def factory_for(working_indices, created=None, silent_indices=()):
     def make(index):
-        camera = StubCamera(index, index in working_indices)
+        camera = StubCamera(
+            index, index in working_indices, delivers=index not in silent_indices
+        )
         if created is not None:
             created.append(camera)
         return camera
@@ -48,14 +55,40 @@ class FakeSettings:
 
 
 class TestProbing:
+    def test_a_device_reports_its_resolution(self):
+        device = probe_devices(2, factory_for({0}))[0]
+
+        assert device == CameraDevice(0, 640, 480)
+        assert device.label == "Camera 0 (640x480)"
+
     def test_it_finds_the_working_devices(self):
-        assert probe_devices(4, factory_for({0, 2})) == [0, 2]
+        assert [d.index for d in probe_devices(4, factory_for({0, 2}))] == [0, 2]
 
     def test_it_reports_nothing_when_no_device_answers(self):
         assert probe_devices(4, factory_for(set())) == []
 
     def test_it_stops_at_the_requested_limit(self):
-        assert probe_devices(2, factory_for({0, 1, 5})) == [0, 1]
+        assert [d.index for d in probe_devices(2, factory_for({0, 1, 5}))] == [0, 1]
+
+    def test_a_device_that_opens_but_delivers_nothing_is_rejected(self):
+        found = probe_devices(4, factory_for({0, 1, 2}, silent_indices={1}))
+
+        assert [device.index for device in found] == [0, 2]
+
+    def test_scanning_stops_after_consecutive_gaps_once_something_was_found(self):
+        created = []
+
+        probe_devices(10, factory_for({0}, created))
+
+        assert [camera.index for camera in created] == [0, 1, 2]
+
+    def test_scanning_continues_through_gaps_before_the_first_device(self):
+        assert [d.index for d in probe_devices(6, factory_for({4}))] == [4]
+
+    def test_a_single_device_check_reports_whether_it_delivers(self):
+        assert delivers_frames(0, factory_for({0})) is True
+        assert delivers_frames(0, factory_for({0}, silent_indices={0})) is False
+        assert delivers_frames(1, factory_for({0})) is False
 
     def test_every_probed_device_is_closed_again(self):
         created = []
@@ -77,7 +110,7 @@ class TestProbing:
                 raise RuntimeError("driver exploded")
             return StubCamera(index, True)
 
-        assert probe_devices(3, make) == [0, 2]
+        assert [d.index for d in probe_devices(3, make)] == [0, 2]
 
 
 class TestRememberingTheChoice:

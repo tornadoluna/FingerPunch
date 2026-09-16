@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, NamedTuple, Protocol
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,30 @@ def load_opencv() -> Any:
             "OpenCV is not installed, so the camera cannot be used"
         ) from error
     return cv2
+
+
+@contextmanager
+def quiet_opencv() -> Iterator[None]:
+    try:
+        import cv2
+
+        logging_module = cv2.utils.logging
+        previous = logging_module.getLogLevel()
+        logging_module.setLogLevel(logging_module.LOG_LEVEL_SILENT)
+    except (ImportError, AttributeError, OSError):
+        yield
+        return
+
+    stderr = os.dup(2)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        os.dup2(stderr, 2)
+        os.close(devnull)
+        os.close(stderr)
+        logging_module.setLogLevel(previous)
 
 
 class OpenCVCamera:

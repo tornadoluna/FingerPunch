@@ -237,6 +237,52 @@ class TestSampleLength:
         assert window.start_time is None
 
 
+class TestWindowSizing:
+    def test_the_window_is_tall_enough_for_its_contents(self, window):
+        window.show()
+
+        assert window.layout().minimumSize().height() <= window.height()
+
+    def test_the_minimum_height_follows_the_layout(self, window):
+        window.show()
+
+        assert window.minimumHeight() >= window.layout().minimumSize().height()
+
+    def test_showing_the_camera_preview_grows_the_window(self, qapp, window):
+        window.show()
+        qapp.processEvents()
+        before = window.height()
+
+        window.camera_panel.preview.show()
+        qapp.processEvents()
+
+        assert window.height() > before
+        assert window.layout().minimumSize().height() <= window.height()
+        assert window.layout().minimumSize().height() <= window.height()
+
+    def test_hiding_the_preview_lowers_the_minimum_again(self, qapp, window):
+        window.show()
+        window.camera_panel.preview.show()
+        qapp.processEvents()
+        grown = window.minimumHeight()
+
+        window.camera_panel.preview.hide()
+        qapp.processEvents()
+
+        assert window.minimumHeight() < grown
+
+    def test_no_explicit_minimum_height_overrides_the_layout(self, qapp, window):
+        window.show()
+        qapp.processEvents()
+
+        assert window.minimumHeight() == window.layout().minimumSize().height()
+
+    def test_the_window_is_wide_enough(self, window):
+        window.show()
+
+        assert window.width() >= window.minimumWidth()
+
+
 class TestLiveStats:
     def test_stats_before_the_session_starts_are_ignored(self, window):
         received = []

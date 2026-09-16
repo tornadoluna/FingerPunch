@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 457 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 489 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -55,7 +55,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 ### In Development
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
   - Finger Mapping: standard QWERTY touch-typing assignment, key to expected finger (done)
-  - Camera capture: opt-in live preview, read on a worker thread (done)
+  - Camera capture: opt-in live preview, read on a worker thread, with device selection (done)
   - Hand landmarks, press attribution and live feedback (not yet started)
 
 ### Future Enhancements
@@ -176,6 +176,13 @@ to the path above to keep your history.
    - **🚀 Progress**: Personal Bests, improvement metrics, and Streaks
 3. Summary statistics show your overall progress and best performances
 
+### Choosing a Camera
+The camera is off by default. Enable it in the CAMERA panel, and if the wrong
+input is used, press **Detect** to list the cameras attached to the machine and
+pick one from the dropdown. The choice is saved and reused next time, so
+plugging in a webcam only needs sorting out once. Detection is only run when you
+press the button, so no camera is opened without you asking for it.
+
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands
 - Finger Mapping: App will guide optimal finger placement
@@ -193,6 +200,7 @@ FingerPunch/
 │   ├── finger_map.py             # QWERTY key to expected touch-typing finger
 │   ├── camera/                   # Camera capture, off the UI thread
 │   │   ├── source.py             # FrameSource protocol and the OpenCV camera
+│   │   ├── devices.py            # Device detection and the remembered choice
 │   │   ├── worker.py             # Frame grabbing thread and its lifecycle
 │   │   └── image.py              # Frame to QImage conversion
 │   ├── logging_config.py         # Log file setup and exception hook
@@ -212,6 +220,7 @@ FingerPunch/
 │   ├── test_text_diff.py         # Changed-range calculation
 │   ├── test_finger_map.py        # Key to finger assignment
 │   ├── test_camera_source.py     # Camera opening, reading and release
+│   ├── test_camera_devices.py    # Device detection and persistence
 │   ├── test_camera_worker.py     # Grab loop and thread lifecycle
 │   ├── test_camera_panel.py      # Preview, toggle and failure reporting
 │   ├── test_stats_incremental.py # Incremental counting vs brute force
@@ -251,7 +260,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 457 automated tests
+- Overall: 99% across 489 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

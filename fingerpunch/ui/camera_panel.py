@@ -6,6 +6,7 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -14,18 +15,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from fingerpunch.camera.devices import (
+    SettingsStore,
+    probe_devices,
+    remember_device_index,
+    saved_device_index,
+)
 from fingerpunch.camera.image import frame_to_image
-from fingerpunch.camera.source import Frame
+from fingerpunch.camera.source import Frame, OpenCVCamera
 from fingerpunch.camera.worker import CameraController
 from fingerpunch.ui import styles
 
 logger = logging.getLogger(__name__)
+
+
+def _default_controller_factory(device_index: int) -> CameraController:
+    return CameraController(source_factory=lambda: OpenCVCamera(device_index))
 
 PREVIEW_WIDTH = 320
 PREVIEW_HEIGHT = 180
 OFF_MESSAGE = "Camera off"
 STARTING_MESSAGE = "Starting the camera..."
 LIVE_MESSAGE = "Camera live"
+NO_DEVICES_MESSAGE = "No cameras detected"
 
 
 class CameraPanel(QGroupBox):
@@ -33,16 +45,22 @@ class CameraPanel(QGroupBox):
 
     def __init__(
         self,
-        controller_factory: Callable[[], CameraController] | None = None,
+        settings: SettingsStore | None = None,
+        controller_factory: Callable[[int], CameraController] | None = None,
+        probe: Callable[[], list[int]] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__("CAMERA", parent)
+        self._settings = settings
+        self._probe = probe if probe is not None else probe_devices
         if controller_factory is None:
-            controller_factory = CameraController
+            controller_factory = _default_controller_factory
+        self._controller_factory = controller_factory
+        self.device_index = saved_device_index(settings)
         self.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
         self.setStyleSheet(styles.panel_style())
 
-        self._controller = controller_factory()
+        self._controller = self._controller_factory(self.device_index)
         self._controller.frame_ready.connect(self._on_frame)
         self._controller.failed.connect(self._on_failed)
 
@@ -71,6 +89,19 @@ class CameraPanel(QGroupBox):
         self.toggle.toggled.connect(self._on_toggled)
         row.addWidget(self.toggle)
 
+        self.device_combo = QComboBox()
+        self.device_combo.setFont(styles.ui_font(11))
+        self.device_combo.setStyleSheet(styles.combo_box_style(min_width=150))
+        self.device_combo.addItem(f"Camera {self.device_index}", self.device_index)
+        self.device_combo.currentIndexChanged.connect(self._on_device_changed)
+        row.addWidget(self.device_combo)
+
+        self.detect_button = QPushButton("Detect")
+        self.detect_button.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
+        self.detect_button.setStyleSheet(styles.secondary_button_style(min_width=80))
+        self.detect_button.clicked.connect(self.detect_devices)
+        row.addWidget(self.detect_button)
+
         self.status = QLabel(OFF_MESSAGE)
         self.status.setFont(styles.ui_font(11))
         self.status.setStyleSheet(f"color: {styles.TEXT_MUTED};")
@@ -83,6 +114,44 @@ class CameraPanel(QGroupBox):
     @property
     def is_enabled(self) -> bool:
         return self.toggle.isChecked()
+
+    def detect_devices(self) -> None:
+        found = self._probe()
+        if not found:
+            self._set_status(NO_DEVICES_MESSAGE, styles.DANGER)
+            return
+
+        self.device_combo.blockSignals(True)
+        self.device_combo.clear()
+        for index in found:
+            self.device_combo.addItem(f"Camera {index}", index)
+        if self.device_index in found:
+            self.device_combo.setCurrentIndex(found.index(self.device_index))
+        else:
+            self._select_device(found[0])
+        self.device_combo.blockSignals(False)
+
+        self._set_status(f"Found {len(found)} camera(s)", styles.TEXT_SECONDARY)
+
+    def _on_device_changed(self, position: int) -> None:
+        index = self.device_combo.itemData(position)
+        if index is None or index == self.device_index:
+            return
+        self._select_device(index)
+
+    def _select_device(self, index: int) -> None:
+        was_enabled = self.toggle.isChecked()
+        if was_enabled:
+            self.toggle.setChecked(False)
+
+        self.device_index = index
+        remember_device_index(self._settings, index)
+        self._controller = self._controller_factory(index)
+        self._controller.frame_ready.connect(self._on_frame)
+        self._controller.failed.connect(self._on_failed)
+
+        if was_enabled:
+            self.toggle.setChecked(True)
 
     def _on_toggled(self, enabled: bool) -> None:
         if enabled:

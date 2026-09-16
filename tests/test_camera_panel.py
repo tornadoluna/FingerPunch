@@ -9,6 +9,7 @@ from fingerpunch.camera.source import Frame
 from fingerpunch.ui import camera_panel
 from fingerpunch.ui.camera_panel import (
     LIVE_MESSAGE,
+    NO_DEVICES_MESSAGE,
     OFF_MESSAGE,
     STARTING_MESSAGE,
     CameraPanel,
@@ -37,25 +38,141 @@ def a_frame(width=4, height=3):
     return Frame(time.monotonic(), width, height, data)
 
 
+class FakeSettings:
+    def __init__(self, stored=None):
+        self.stored = dict(stored or {})
+
+    def get_setting(self, key, default=None):
+        return self.stored.get(key, default)
+
+    def save_setting(self, key, value):
+        self.stored[key] = value
+
+
 @pytest.fixture
 def panel(qapp):
-    controller = FakeController()
-    widget = CameraPanel(controller_factory=lambda: controller)
-    widget._fake = controller
+    controllers = []
+
+    def factory(device_index):
+        controller = FakeController()
+        controller.device_index = device_index
+        controllers.append(controller)
+        return controller
+
+    widget = CameraPanel(controller_factory=factory, probe=lambda: [0, 1, 2])
+    widget._controllers = controllers
+    widget._fake = controllers[0]
     yield widget
     widget.deleteLater()
+
+
+class TestDeviceSelection:
+    def test_it_starts_on_the_saved_device(self, qapp):
+        settings = FakeSettings({"camera_device_index": 2})
+        seen = []
+
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i: seen.append(i) or FakeController(),
+            probe=list,
+        )
+
+        assert widget.device_index == 2
+        assert seen == [2]
+        widget.deleteLater()
+
+    def test_it_defaults_to_the_first_device(self, panel):
+        assert panel.device_index == 0
+
+    def test_detecting_lists_every_camera_found(self, panel):
+        panel.detect_devices()
+
+        labels = [panel.device_combo.itemText(i) for i in range(panel.device_combo.count())]
+        assert labels == ["Camera 0", "Camera 1", "Camera 2"]
+
+    def test_detecting_nothing_reports_it(self, qapp):
+        widget = CameraPanel(controller_factory=lambda i: FakeController(), probe=list)
+
+        widget.detect_devices()
+
+        assert widget.status.text() == NO_DEVICES_MESSAGE
+        widget.deleteLater()
+
+    def test_choosing_a_device_rebuilds_the_controller_for_it(self, panel):
+        panel.detect_devices()
+
+        panel.device_combo.setCurrentIndex(1)
+
+        assert panel.device_index == 1
+        assert panel._controllers[-1].device_index == 1
+
+    def test_choosing_a_device_is_remembered(self, qapp):
+        settings = FakeSettings()
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i: FakeController(),
+            probe=lambda: [0, 1],
+        )
+        widget.detect_devices()
+
+        widget.device_combo.setCurrentIndex(1)
+
+        assert settings.stored["camera_device_index"] == 1
+        widget.deleteLater()
+
+    def test_switching_device_while_live_restarts_on_the_new_one(self, panel):
+        panel.detect_devices()
+        panel.toggle.setChecked(True)
+        assert panel._controllers[0].started == 1
+
+        panel.device_combo.setCurrentIndex(2)
+
+        assert panel._controllers[0].stopped == 1
+        assert panel._controllers[-1].device_index == 2
+        assert panel._controllers[-1].started == 1
+
+    def test_switching_device_while_off_does_not_start_it(self, panel):
+        panel.detect_devices()
+
+        panel.device_combo.setCurrentIndex(1)
+
+        assert panel._controllers[-1].started == 0
+
+    def test_detecting_keeps_the_current_device_when_still_present(self, panel):
+        panel.detect_devices()
+        panel.device_combo.setCurrentIndex(2)
+        before = panel.device_index
+
+        panel.detect_devices()
+
+        assert panel.device_index == before
+
+    def test_a_vanished_device_falls_back_to_the_first_found(self, qapp):
+        settings = FakeSettings({"camera_device_index": 7})
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i: FakeController(),
+            probe=lambda: [0, 1],
+        )
+
+        widget.detect_devices()
+
+        assert widget.device_index == 0
+        widget.deleteLater()
 
 
 class TestControllerSubstitution:
     def test_the_default_controller_is_resolved_at_construction_time(self, qapp, monkeypatch):
         created = []
         monkeypatch.setattr(
-            camera_panel, "CameraController", lambda: created.append(1) or FakeController()
+            camera_panel,
+            "_default_controller_factory",
+            lambda index: created.append(index) or FakeController(),
         )
 
         widget = CameraPanel()
 
-        assert created == [1]
+        assert created == [0]
         widget.deleteLater()
 
     def test_the_suite_cannot_reach_a_real_camera(self):
@@ -202,9 +319,8 @@ class TestShutdown:
 
         assert panel._fake.stopped == 1
 
-    def test_closing_the_window_shuts_the_camera_down(self, window, monkeypatch):
+    def test_closing_the_window_shuts_the_camera_down(self, window):
         controller = FakeController()
-        monkeypatch.setattr(camera_panel, "CameraController", lambda: controller)
         window.camera_panel._controller = controller
 
         window.close()

@@ -82,8 +82,7 @@ class TypingPracticeApp(QWidget):
 
     def _init_ui(self) -> None:
         self.setWindowTitle("FingerPunch")
-        self.resize(900, 700)
-        self.setMinimumSize(800, 700)
+        self.setMinimumWidth(800)
         self.setStyleSheet(styles.WINDOW_STYLE)
 
         main_layout = QVBoxLayout()
@@ -92,10 +91,11 @@ class TypingPracticeApp(QWidget):
         main_layout.addWidget(self._build_sample_group())
         main_layout.addWidget(self._build_input_group())
         main_layout.addWidget(self._build_control_group())
-        self.camera_panel = CameraPanel()
+        self.camera_panel = CameraPanel(settings=self.data_manager)
         main_layout.addWidget(self.camera_panel)
         main_layout.addStretch()
         self.setLayout(main_layout)
+        self.resize(900, 760)
 
     @property
     def sample_text(self) -> str:

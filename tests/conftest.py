@@ -50,3 +50,13 @@ def window(qapp, tmp_path, monkeypatch, results_dialog, history_dialog):
     widget = main_window.TypingPracticeApp()
     yield widget
     widget.deleteLater()
+
+
+@pytest.fixture(autouse=True)
+def no_real_camera(monkeypatch):
+    from fingerpunch.camera import source
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("a test tried to reach a real camera device")
+
+    monkeypatch.setattr(source, "load_opencv", refuse)

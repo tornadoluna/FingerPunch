@@ -32,6 +32,7 @@ from fingerpunch.stats import StatsWorker
 from fingerpunch.text_diff import dirty_range
 from fingerpunch.text_generator import generate_mixed_text
 from fingerpunch.ui import styles
+from fingerpunch.ui.camera_panel import CameraPanel
 from fingerpunch.ui.history_dialog import HistoryDialog
 from fingerpunch.ui.results_dialog import NEW_TEXT_RESULT, ResultsDialog
 from fingerpunch.ui.widgets import TypingInput, show_message
@@ -91,6 +92,8 @@ class TypingPracticeApp(QWidget):
         main_layout.addWidget(self._build_sample_group())
         main_layout.addWidget(self._build_input_group())
         main_layout.addWidget(self._build_control_group())
+        self.camera_panel = CameraPanel()
+        main_layout.addWidget(self.camera_panel)
         main_layout.addStretch()
         self.setLayout(main_layout)
 
@@ -359,5 +362,6 @@ class TypingPracticeApp(QWidget):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.timer.stop()
+        self.camera_panel.shutdown()
         logger.info("Shutting down")
         super().closeEvent(event)

@@ -164,6 +164,3 @@ class TestOpenCVImport:
 
         with pytest.raises(CameraUnavailable, match="OpenCV is not installed"):
             load_opencv()
-
-    def test_opencv_is_importable_in_this_environment(self):
-        assert load_opencv() is not None

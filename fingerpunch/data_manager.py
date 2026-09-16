@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, NamedTuple, TypedDict
 
 from fingerpunch.paths import default_database_path
+
+logger = logging.getLogger(__name__)
+
+
+class StorageError(RuntimeError):
+    pass
 
 
 class Session(NamedTuple):
@@ -120,11 +129,29 @@ SCHEMA_VERSION = len(MIGRATIONS)
 class DataManager:
     def __init__(self, db_path: str | Path | None = None) -> None:
         self.db_path = str(db_path) if db_path is not None else str(default_database_path())
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        try:
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            logger.exception("Could not create the database directory for %s", self.db_path)
+            raise StorageError(f"Could not create the database directory: {error}") from error
         self.init_db()
 
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        connection = None
+        try:
+            connection = sqlite3.connect(self.db_path)
+            with connection:
+                yield connection
+        except sqlite3.Error as error:
+            logger.exception("Database operation failed on %s", self.db_path)
+            raise StorageError(str(error)) from error
+        finally:
+            if connection is not None:
+                connection.close()
+
     def init_db(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             applied = conn.execute('PRAGMA user_version').fetchone()[0]
             for index in range(applied, SCHEMA_VERSION):
                 MIGRATIONS[index](conn)
@@ -132,12 +159,12 @@ class DataManager:
             conn.commit()
 
     def schema_version(self) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             return conn.execute('PRAGMA user_version').fetchone()[0]
 
     def save_session(self, stats: dict[str, Any], sample_text: str = "") -> None:
         """Stores only the first 200 characters of sample_text."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO sessions (date, wpm, accuracy, time_taken, total_chars, keystrokes, efficiency, text_length, sample_text)
@@ -156,7 +183,7 @@ class DataManager:
             conn.commit()
 
     def get_all_sessions(self, limit: int | None = None) -> list[Session]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             if limit:
                 cursor.execute(
@@ -174,14 +201,14 @@ class DataManager:
             return [Session(*row) for row in cursor.fetchall()]
 
     def delete_session(self, session_id: int) -> bool:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
             conn.commit()
             return cursor.rowcount > 0
 
     def get_session_stats(self) -> SessionStats:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
 
             cursor.execute('SELECT COUNT(*) FROM sessions')
@@ -216,14 +243,14 @@ class DataManager:
             }
 
     def save_setting(self, key: str, value: Any) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
                          (key, json.dumps(value)))
             conn.commit()
 
     def get_setting(self, key: str, default: Any = None) -> Any:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
             result = cursor.fetchone()
@@ -244,7 +271,7 @@ class DataManager:
         with open(filepath, 'r') as f:
             data = json.load(f)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             for row in data.get('sessions', []):
                 session = Session(*row[:len(Session._fields)])
@@ -266,7 +293,7 @@ class DataManager:
             conn.commit()
 
     def get_performance_by_length(self) -> list[LengthPerformance]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT text_length,
@@ -283,7 +310,7 @@ class DataManager:
 
     def get_personal_bests(self) -> PersonalBests:
         """Always returns all four keys, with a value of 0 and no date when unset."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
 
             cursor.execute('SELECT MAX(wpm), date FROM sessions')
@@ -355,7 +382,7 @@ class DataManager:
 
     def update_streaks(self) -> None:
         """Derived from the distinct session dates, so it is idempotent and repairs bad rows."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
 
             cursor.execute('SELECT DISTINCT DATE(date) FROM sessions')
@@ -400,7 +427,7 @@ class DataManager:
             conn.commit()
 
     def get_streak_info(self) -> StreakInfo:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 'SELECT current_streak, longest_streak FROM streaks ORDER BY date DESC, id DESC LIMIT 1'
@@ -420,7 +447,7 @@ class DataManager:
                 }
 
     def get_streak_history(self, days: int = 30) -> list[StreakDay]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cutoff = (datetime.now().date() - timedelta(days=days)).isoformat()
             cursor.execute(

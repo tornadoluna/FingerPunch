@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 from PySide6.QtCore import QTimer, Signal
@@ -19,13 +20,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from fingerpunch.data_manager import DataManager
+from fingerpunch.data_manager import DataManager, StorageError
 from fingerpunch.stats import StatsWorker
 from fingerpunch.text_generator import generate_mixed_text
 from fingerpunch.ui import styles
 from fingerpunch.ui.history_dialog import HistoryDialog
 from fingerpunch.ui.results_dialog import NEW_TEXT_RESULT, ResultsDialog
 from fingerpunch.ui.widgets import TypingInput, show_message
+
+logger = logging.getLogger(__name__)
 
 
 class TypingPracticeApp(QWidget):
@@ -259,8 +262,21 @@ class TypingPracticeApp(QWidget):
 
     def show_results_dialog(self) -> None:
         stats = self.stats_worker.get_final_stats()
-        self.data_manager.save_session(stats, self.sample_text)
-        self.data_manager.update_streaks()
+        try:
+            self.data_manager.save_session(stats, self.sample_text)
+            self.data_manager.update_streaks()
+        except StorageError:
+            logger.exception("Could not save the finished session")
+            show_message(
+                self,
+                "Session not saved",
+                "Your results are shown below, but they could not be written to the"
+                " database. Check the log for details.",
+            )
+        else:
+            logger.info(
+                "Session finished: %.1f wpm, %.1f%% accuracy", stats["wpm"], stats["accuracy"]
+            )
 
         dialog = ResultsDialog(stats, self)
         result = dialog.exec()
@@ -271,11 +287,32 @@ class TypingPracticeApp(QWidget):
             self.load_new_sample_text()
 
     def show_history_dialog(self) -> None:
-        sessions = self.data_manager.get_all_sessions()
+        try:
+            sessions = self.data_manager.get_all_sessions()
+        except StorageError:
+            logger.exception("Could not read the session history")
+            show_message(
+                self,
+                "History unavailable",
+                "Your typing history could not be read. Check the log for details.",
+            )
+            return
+
         if not sessions:
             show_message(self, "No history found", "You have no typing history recorded.")
             return
-        HistoryDialog(self.data_manager, self).exec()
+
+        try:
+            HistoryDialog(self.data_manager, self).exec()
+        except StorageError:
+            logger.exception("Could not build the history dialog")
+            show_message(
+                self,
+                "History unavailable",
+                "Your typing history could not be read. Check the log for details.",
+            )
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.timer.stop()
+        logger.info("Shutting down")
         super().closeEvent(event)

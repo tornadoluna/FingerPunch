@@ -73,7 +73,6 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 ### Prerequisites
 ```bash
 Python 3.12+
-pip
 ```
 
 ### Installation
@@ -82,16 +81,34 @@ pip
 git clone https://github.com/tornadoluna/FingerPunch.git
 cd FingerPunch
 
-# Install dependencies
-pip install -r requirements.txt
-# ...or, to also run the tests/linter: pip install -r requirements-dev.txt
+# Create and activate a virtual environment.
+# Most Linux distributions refuse to install into the system interpreter (PEP 668),
+# so this step is required rather than optional.
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# Install the app (provides the `fingerpunch` command)
+# Install the app and its dependencies (provides the `fingerpunch` command)
 pip install -e .
+
+# ...or, to also run the tests and linter:
+# pip install -e . -r requirements-dev.txt
 
 # Run the application
 fingerpunch
 ```
+
+`fingerpunch` is available only while the virtual environment is active. Without
+activating it, run the app with the interpreter inside the environment:
+
+```bash
+.venv/bin/fingerpunch
+# or
+.venv/bin/python -m fingerpunch
+```
+
+Note that `python -m fingerpunch` is the correct module form. Running
+`python fingerpunch` executes the directory and will fail if the environment is
+not the one the dependencies were installed into.
 
 ### Running Tests
 ```bash

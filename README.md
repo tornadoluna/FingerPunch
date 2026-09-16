@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 243 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 303 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -50,6 +50,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Versioned Storage: Schema migrations tracked with `PRAGMA user_version`, so the database upgrades in place
 - Error Handling: Storage failures are reported in the interface rather than crashing, and a failed save still shows your results
 - Logging: Rotating log file beside the database, with unhandled exceptions recorded
+- Incremental Rendering: Only the characters that changed are repainted, so keystroke cost stays flat as sample length grows
 
 ### In Development
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing (not yet started)
@@ -168,6 +169,7 @@ FingerPunch/
 │   ├── stats.py                  # Statistics and keystroke tracking
 │   ├── text_generator.py         # Sentence generation
 │   ├── paths.py                  # User data directory resolution
+│   ├── text_diff.py              # Changed-range calculation shared by stats and UI
 │   ├── logging_config.py         # Log file setup and exception hook
 │   ├── data_manager.py           # SQLite session persistence and migrations
 │   └── ui/                       # Qt presentation layer
@@ -181,6 +183,8 @@ FingerPunch/
 │   ├── test_stats_worker.py      # Keystroke, accuracy and sampling
 │   ├── test_data_manager.py      # SQLite persistence and migrations
 │   ├── test_paths.py             # Data directory resolution
+│   ├── test_text_diff.py         # Changed-range calculation
+│   ├── test_stats_incremental.py # Incremental counting vs brute force
 │   ├── test_logging_config.py    # Logging setup and exception hook
 │   ├── test_error_handling.py    # Storage failure boundaries
 │   ├── test_main_entry.py        # Startup and startup failure
@@ -204,6 +208,7 @@ FingerPunch/
 ### Test Coverage
 - fingerpunch/logging_config.py: 100%
 - fingerpunch/paths.py: 100%
+- fingerpunch/text_diff.py: 100%
 - fingerpunch/ui/main_window.py: 100%
 - fingerpunch/ui/results_dialog.py: 100%
 - fingerpunch/ui/widgets.py: 100%
@@ -213,7 +218,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 243 automated tests
+- Overall: 99% across 303 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

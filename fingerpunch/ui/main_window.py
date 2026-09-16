@@ -4,7 +4,14 @@ import logging
 import time
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QIcon
+from PySide6.QtGui import (
+    QCloseEvent,
+    QColor,
+    QFont,
+    QIcon,
+    QTextCharFormat,
+    QTextCursor,
+)
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -22,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from fingerpunch.data_manager import DataManager, StorageError
 from fingerpunch.stats import StatsWorker
+from fingerpunch.text_diff import dirty_range
 from fingerpunch.text_generator import generate_mixed_text
 from fingerpunch.ui import styles
 from fingerpunch.ui.history_dialog import HistoryDialog
@@ -31,6 +39,19 @@ from fingerpunch.ui.widgets import TypingInput, show_message
 logger = logging.getLogger(__name__)
 
 
+def _character_format(color: str | None) -> QTextCharFormat:
+    text_format = QTextCharFormat()
+    text_format.setForeground(QColor(color) if color else QColor(styles.TEXT_PRIMARY))
+    return text_format
+
+
+_CHARACTER_FORMATS = {
+    "untyped": _character_format(None),
+    "correct": _character_format(styles.SUCCESS),
+    "incorrect": _character_format(styles.DANGER),
+}
+
+
 class TypingPracticeApp(QWidget):
     stats_updated = Signal(str, str, str)
     text_updated = Signal(str)
@@ -38,7 +59,8 @@ class TypingPracticeApp(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.text_length: int = 50
-        self.sample_text: str = generate_mixed_text(length=50)
+        self._sample_text: str = generate_mixed_text(length=50)
+        self._highlighted: str = ""
         self.start_time: float | None = None
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_time)
@@ -72,6 +94,16 @@ class TypingPracticeApp(QWidget):
         main_layout.addStretch()
         self.setLayout(main_layout)
 
+    @property
+    def sample_text(self) -> str:
+        return self._sample_text
+
+    @sample_text.setter
+    def sample_text(self, text: str) -> None:
+        self._sample_text = text
+        self._highlighted = ""
+        self.text_label.setPlainText(text)
+
     def _build_sample_group(self) -> QGroupBox:
         group = QGroupBox("SAMPLE TEXT")
         group.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
@@ -81,7 +113,7 @@ class TypingPracticeApp(QWidget):
         layout.setContentsMargins(16, 20, 16, 16)
 
         self.text_label = QTextBrowser()
-        self.text_label.setText(self.sample_text)
+        self.text_label.setPlainText(self._sample_text)
         self.text_label.setFont(styles.ui_font(16))
         self.text_label.setStyleSheet(styles.text_surface_style())
         self.text_label.setReadOnly(True)
@@ -203,7 +235,6 @@ class TypingPracticeApp(QWidget):
 
     def load_new_sample_text(self) -> None:
         self.sample_text = generate_mixed_text(length=self.text_length)
-        self.text_label.setText(self.sample_text)
         self.reset_practice()
 
     def on_word_count_changed(self, text: str) -> None:
@@ -220,19 +251,9 @@ class TypingPracticeApp(QWidget):
         typed_text = self.input_edit.toPlainText()
         self.text_updated.emit(typed_text)
 
-        html = ""
-        correct_count = 0
-        for i, char in enumerate(self.sample_text):
-            escaped_char = char.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            if i < len(typed_text):
-                if typed_text[i] == char:
-                    html += f'<span style="color: {styles.SUCCESS};">{escaped_char}</span>'
-                    correct_count += 1
-                else:
-                    html += f'<span style="color: {styles.DANGER};">{escaped_char}</span>'
-            else:
-                html += escaped_char
-        self.text_label.setHtml(html)
+        self._repaint_sample(typed_text)
+        self._highlighted = typed_text
+        correct_count = self.stats_worker.correct_chars
 
         cursor = self.text_label.textCursor()
         cursor.setPosition(min(len(typed_text), len(self.sample_text)))
@@ -251,6 +272,30 @@ class TypingPracticeApp(QWidget):
             self.timer.stop()
             self.stats_worker.record_sample()
             self.show_results_dialog()
+
+    def _character_state(self, index: int, typed_text: str) -> str:
+        if index >= len(typed_text):
+            return "untyped"
+        return "correct" if typed_text[index] == self.sample_text[index] else "incorrect"
+
+    def _repaint_sample(self, typed_text: str) -> None:
+        sample = self.sample_text
+        previous = self._highlighted
+
+        start, end = dirty_range(previous, typed_text, len(sample))
+
+        if start < end:
+            cursor = QTextCursor(self.text_label.document())
+            run_start = start
+            while run_start < end:
+                state = self._character_state(run_start, typed_text)
+                run_end = run_start + 1
+                while run_end < end and self._character_state(run_end, typed_text) == state:
+                    run_end += 1
+                cursor.setPosition(run_start)
+                cursor.setPosition(run_end, QTextCursor.KeepAnchor)
+                cursor.setCharFormat(_CHARACTER_FORMATS[state])
+                run_start = run_end
 
     def update_stats(self, wpm: str, accuracy: str) -> None:
         if self.start_time is None:

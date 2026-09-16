@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 import matplotlib.dates as mdates
@@ -26,9 +27,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from fingerpunch.data_manager import DataManager, Session
+from fingerpunch.data_manager import DataManager, Session, StorageError
 from fingerpunch.ui import styles
-from fingerpunch.ui.widgets import confirm
+from fingerpunch.ui.widgets import confirm, show_message
+
+logger = logging.getLogger(__name__)
 
 SESSION_COLUMNS = ["Date", "Time", "WPM", "Accuracy", "Chars", "Keystrokes", "Efficiency"]
 
@@ -200,8 +203,19 @@ class HistoryDialog(QDialog):
         if not confirm(self, "Delete session", "Delete this session? This cannot be undone."):
             return
 
-        self.data_manager.delete_session(session_id)
-        self.data_manager.update_streaks()
+        try:
+            self.data_manager.delete_session(session_id)
+            self.data_manager.update_streaks()
+        except StorageError:
+            logger.exception("Could not delete session %s", session_id)
+            show_message(
+                self,
+                "Session not deleted",
+                "That session could not be removed. Check the log for details.",
+            )
+            return
+
+        logger.info("Deleted session %s", session_id)
         self._update_summary()
         self._rebuild_tabs()
 

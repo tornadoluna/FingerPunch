@@ -27,7 +27,7 @@ class TypingInput(QTextEdit):
         return
 
 
-def _message_dialog(parent: QWidget, title: str, message: str) -> tuple[QDialog, QVBoxLayout]:
+def _message_dialog(parent: QWidget | None, title: str, message: str) -> tuple[QDialog, QVBoxLayout]:
     dialog = QDialog(parent)
     dialog.setWindowTitle(title)
     dialog.setStyleSheet(styles.WINDOW_STYLE)
@@ -46,7 +46,7 @@ def _message_dialog(parent: QWidget, title: str, message: str) -> tuple[QDialog,
     return dialog, layout
 
 
-def show_message(parent: QWidget, title: str, message: str) -> None:
+def show_message(parent: QWidget | None, title: str, message: str) -> None:
     """A simple modal message box, styled to match the app."""
     dialog, layout = _message_dialog(parent, title, message)
 

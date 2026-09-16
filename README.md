@@ -39,15 +39,17 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 20 pytest tests covering text generation and stats logic (see Testing & Quality below)
+- Automated Testing: 188 pytest tests with 94% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
 - Advanced Analytics: MonkeyType-style statistics including personal bests, improvement metrics, and performance by text length
 - Streak Tracking: Monitor daily practice streaks and build typing habits
+- Session Management: Delete a session from the history when a result is not worth keeping
+- Paste Protection: The typing area refuses pasted and dropped text, so a result reflects real typing
 
 ### In Development
-- Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
+- Camera Integration: OpenCV camera feed capture with MediaPipe finger processing (not yet started)
 
 ### Future Enhancements
 - Improve text generation with markov chains or GPT-3 for more natural sentences
@@ -93,7 +95,7 @@ fingerpunch
 pytest
 
 # Run with coverage report
-pytest --cov=. --cov-report=html
+pytest --cov=fingerpunch --cov-report=html
 
 # Run specific test file
 pytest tests/test_stats_worker.py
@@ -117,7 +119,7 @@ pytest tests/test_stats_worker.py
 ### Viewing Progress History
 1. Click the "View History" button in the main interface
 2. Switch between three main tabs for different views:
-   - **📊 Sessions**: Detailed session data in a sortable table
+   - **📊 Sessions**: Detailed session data in a table, with the option to delete a session
    - **📈 Analytics**: Interactive charts with dropdown selector for Performance Overview, Recent Activity, and Performance by Length
    - **🚀 Progress**: Personal Bests, improvement metrics, and Streaks
 3. Summary statistics show your overall progress and best performances
@@ -139,12 +141,20 @@ FingerPunch/
 │       ├── main_window.py        # Main practice window
 │       ├── results_dialog.py     # End-of-session results
 │       ├── history_dialog.py     # History, analytics, progress
+│       ├── widgets.py            # Typing input and shared dialogs
 │       └── styles.py             # Shared dark-theme design system
 ├── tests/                        # Test suite
-│   ├── test_stats_worker.py      # Keystroke and accuracy tests
-│   ├── test_typing_app_reset.py  # UI reset functionality tests
-│   ├── test_text_generator.py    # Text generation tests
+│   ├── conftest.py               # Shared Qt and window fixtures
+│   ├── test_stats_worker.py      # Keystroke, accuracy and sampling
+│   ├── test_data_manager.py      # SQLite persistence layer
+│   ├── test_main_window.py       # Session lifecycle and rendering
+│   ├── test_results_dialog.py    # End-of-session results
+│   ├── test_history_dialog.py    # History table, charts, deletion
+│   ├── test_typing_input.py      # Paste protection
+│   ├── test_widgets.py           # Message and confirmation dialogs
+│   ├── test_text_generator.py    # Text generation
 │   └── README.md                 # Test documentation
+├── .github/workflows/ci.yml      # Lint, test and coverage gate
 ├── pyproject.toml                # Packaging, entry point, lint config
 ├── requirements.txt              # Runtime dependencies
 ├── requirements-dev.txt          # Dev dependencies (test/lint tooling)
@@ -155,16 +165,19 @@ FingerPunch/
 ## Testing & Quality
 
 ### Test Coverage
-- fingerpunch/text_generator.py: 100%
-- fingerpunch/stats.py: 99% (keystroke, accuracy and sampling logic)
-- fingerpunch/ui/main_window.py: 24% (reset and dialog-result logic only)
-- fingerpunch/ui/results_dialog.py: 15%
-- fingerpunch/data_manager.py: 12%
-- fingerpunch/ui/history_dialog.py: 8%
-- Overall: 28% across 25 automated tests
+- fingerpunch/ui/results_dialog.py: 100%
+- fingerpunch/ui/widgets.py: 100%
+- fingerpunch/stats.py: 99%
+- fingerpunch/ui/main_window.py: 99%
+- fingerpunch/ui/history_dialog.py: 98%
+- fingerpunch/ui/styles.py: 98%
+- fingerpunch/text_generator.py: 95%
+- fingerpunch/data_manager.py: 81%
+- Overall: 94% across 188 automated tests
 
-The logic layer is well covered; the Qt presentation layer and the SQLite
-persistence layer are largely untested and are the next testing priority.
+CI fails if overall coverage drops below 90%. Qt tests run against a real
+widget on the offscreen platform rather than against mocks, so they exercise
+the same signal wiring the running application uses.
 
 ### Running Tests
 ```bash
@@ -172,10 +185,13 @@ persistence layer are largely untested and are the next testing priority.
 pytest
 
 # With coverage
-pytest --cov=. --cov-report=html
+pytest --cov=fingerpunch --cov-report=html
 
 # Specific module
 pytest tests/test_stats_worker.py -v
+
+# Lint
+ruff check .
 ```
 
 ## Development Roadmap
@@ -191,7 +207,7 @@ pytest tests/test_stats_worker.py -v
 - [x] SQLite database integration
 - [x] Session history storage
 - [x] Progress visualization
-- [x] User profiles
+- [ ] User profiles
 
 ### Phase 3: Camera Integration
 - [ ] OpenCV setup

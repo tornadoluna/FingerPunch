@@ -9,40 +9,11 @@ same signal wiring the running application uses.
 import sqlite3
 from unittest.mock import patch
 
-import pytest
 from PySide6.QtWidgets import QDialog, QLabel
 
-from fingerpunch.data_manager import DataManager
 from fingerpunch.ui import main_window
-from fingerpunch.ui.main_window import TypingPracticeApp
 from fingerpunch.ui.results_dialog import NEW_TEXT_RESULT
-
-SAMPLE = "the quick brown fox"
-
-
-@pytest.fixture
-def results_dialog():
-    with patch.object(main_window, "ResultsDialog") as dialog:
-        dialog.return_value.exec.return_value = QDialog.Rejected
-        yield dialog
-
-
-@pytest.fixture
-def history_dialog():
-    with patch.object(main_window, "HistoryDialog") as dialog:
-        dialog.return_value.exec.return_value = QDialog.Rejected
-        yield dialog
-
-
-@pytest.fixture
-def window(qapp, tmp_path, monkeypatch, results_dialog, history_dialog):
-    db_path = tmp_path / "sessions.db"
-    monkeypatch.setattr(main_window, "DataManager", lambda: DataManager(str(db_path)))
-    monkeypatch.setattr(main_window, "generate_mixed_text", lambda length: SAMPLE)
-
-    widget = TypingPracticeApp()
-    yield widget
-    widget.deleteLater()
+from tests.conftest import SAMPLE
 
 
 def type_text(window, text):

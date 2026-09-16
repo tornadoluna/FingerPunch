@@ -145,6 +145,32 @@ TEXT_BROWSER_COMPACT_STYLE = f"""
     }}
 """
 
+TABLE_STYLE = f"""
+    QTableWidget {{
+        color: {TEXT_PRIMARY};
+        background-color: {BG_SURFACE};
+        border-radius: 8px;
+        border: 1px solid {BORDER};
+        gridline-color: {BORDER};
+    }}
+    QTableWidget::item {{
+        padding: 6px 8px;
+        border-bottom: 1px solid {BORDER};
+    }}
+    QTableWidget::item:selected {{
+        background-color: {ACCENT_MUTED};
+        color: {TEXT_PRIMARY};
+    }}
+    QHeaderView::section {{
+        padding: 8px;
+        color: {TEXT_SECONDARY};
+        background-color: {BG_SURFACE};
+        border: none;
+        border-bottom: 1px solid {BORDER};
+        font-weight: 600;
+    }}
+"""
+
 PROGRESS_BAR_STYLE = f"""
     QProgressBar {{
         border: none;

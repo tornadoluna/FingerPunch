@@ -9,13 +9,17 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QTextBrowser,
     QVBoxLayout,
@@ -24,6 +28,9 @@ from PySide6.QtWidgets import (
 
 from fingerpunch.data_manager import DataManager
 from fingerpunch.ui import styles
+from fingerpunch.ui.widgets import confirm
+
+SESSION_COLUMNS = ["Date", "Time", "WPM", "Accuracy", "Chars", "Keystrokes", "Efficiency"]
 
 
 class HistoryDialog(QDialog):
@@ -49,22 +56,15 @@ class HistoryDialog(QDialog):
         title.setStyleSheet(f"color: {styles.TEXT_PRIMARY}; margin-bottom: 4px;")
         layout.addWidget(title)
 
-        sessions = self.data_manager.get_all_sessions()
-        stats = self.data_manager.get_session_stats()
-        if stats["total_sessions"] > 0:
-            summary_text = (
-                f"Total Sessions: {stats['total_sessions']} | "
-                f"Best WPM: {stats['best_wpm']} | Best Accuracy: {stats['best_accuracy']}% | "
-                f"Avg WPM: {stats['avg_wpm']} | Avg Accuracy: {stats['avg_accuracy']}%"
-            )
-            summary_label = QLabel(summary_text)
-            summary_label.setFont(styles.ui_font(12))
-            summary_label.setStyleSheet(
-                f"color: {styles.ACCENT}; padding: 10px; "
-                f"background-color: {styles.BG_SURFACE}; border-radius: 8px;"
-            )
-            summary_label.setWordWrap(True)
-            layout.addWidget(summary_label)
+        self.summary_label = QLabel()
+        self.summary_label.setFont(styles.ui_font(12))
+        self.summary_label.setStyleSheet(
+            f"color: {styles.ACCENT}; padding: 10px; "
+            f"background-color: {styles.BG_SURFACE}; border-radius: 8px;"
+        )
+        self.summary_label.setWordWrap(True)
+        layout.addWidget(self.summary_label)
+        self._update_summary()
 
         tab_widget = QTabWidget()
         tab_widget.setStyleSheet(f"""
@@ -90,10 +90,9 @@ class HistoryDialog(QDialog):
                 color: {styles.TEXT_PRIMARY};
             }}
         """)
-        tab_widget.addTab(self._build_sessions_tab(sessions), "Sessions")
-        tab_widget.addTab(self._build_analytics_tab(), "Analytics")
-        tab_widget.addTab(self._build_progress_tab(), "Progress")
+        self.tabs = tab_widget
         layout.addWidget(tab_widget)
+        self._rebuild_tabs()
 
         close_button = QPushButton("Close")
         close_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
@@ -103,49 +102,108 @@ class HistoryDialog(QDialog):
 
         self.setLayout(layout)
 
-    def _build_sessions_tab(self, sessions: list) -> QWidget:
+    def _update_summary(self) -> None:
+        stats = self.data_manager.get_session_stats()
+        if stats["total_sessions"] == 0:
+            self.summary_label.setText("")
+            self.summary_label.hide()
+            return
+
+        self.summary_label.setText(
+            f"Total Sessions: {stats['total_sessions']} | "
+            f"Best WPM: {stats['best_wpm']} | Best Accuracy: {stats['best_accuracy']}% | "
+            f"Avg WPM: {stats['avg_wpm']} | Avg Accuracy: {stats['avg_accuracy']}%"
+        )
+        self.summary_label.show()
+
+    def _rebuild_tabs(self) -> None:
+        current = max(self.tabs.currentIndex(), 0)
+        while self.tabs.count():
+            widget = self.tabs.widget(0)
+            self.tabs.removeTab(0)
+            widget.deleteLater()
+
+        self.tabs.addTab(self._build_sessions_tab(), "Sessions")
+        self.tabs.addTab(self._build_analytics_tab(), "Analytics")
+        self.tabs.addTab(self._build_progress_tab(), "Progress")
+        self.tabs.setCurrentIndex(min(current, self.tabs.count() - 1))
+
+    def _build_sessions_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout()
         layout.setSpacing(10)
         layout.setContentsMargins(10, 10, 10, 10)
 
-        history_list = QTextBrowser()
-        history_list.setFont(styles.ui_font(12))
-        history_list.setStyleSheet(styles.TEXT_BROWSER_COMPACT_STYLE)
-        history_list.setReadOnly(True)
-        history_list.setHtml(self._history_html(sessions))
-        layout.addWidget(history_list)
+        self.sessions_table = QTableWidget()
+        self.sessions_table.setColumnCount(len(SESSION_COLUMNS))
+        self.sessions_table.setHorizontalHeaderLabels(SESSION_COLUMNS)
+        self.sessions_table.setFont(styles.ui_font(12))
+        self.sessions_table.setStyleSheet(styles.TABLE_STYLE)
+        self.sessions_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.sessions_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.sessions_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.sessions_table.verticalHeader().setVisible(False)
+        self.sessions_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.sessions_table.itemSelectionChanged.connect(self._update_delete_button)
+        layout.addWidget(self.sessions_table)
+
+        self.delete_button = QPushButton("Delete Session")
+        self.delete_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
+        self.delete_button.setStyleSheet(styles.danger_button_style())
+        self.delete_button.clicked.connect(self._delete_selected_session)
+        layout.addWidget(self.delete_button, alignment=Qt.AlignRight)
+
+        self._populate_sessions_table()
 
         widget.setLayout(layout)
         return widget
 
     @staticmethod
-    def _history_html(sessions: list) -> str:
-        html = (
-            "<style>"
-            "table { width: 100%; border-collapse: collapse; font-size: 12px; }"
-            f"th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid {styles.BORDER}; }}"
-            f"th {{ color: {styles.TEXT_SECONDARY}; font-weight: 600; }}"
-            f"tr:hover {{ background-color: {styles.BG_SURFACE_HOVER}; }}"
-            "</style>"
-        )
-        html += "<table>"
-        html += (
-            "<tr><th>Date</th><th>Time</th><th>WPM</th><th>Accuracy</th>"
-            "<th>Chars</th><th>Keystrokes</th><th>Efficiency</th></tr>"
-        )
-        for session in sessions:
-            # session format: (id, date, wpm, accuracy, time_taken, total_chars, keystrokes, efficiency, text_length, sample_text)
-            date_obj = datetime.fromisoformat(session[1])
-            date_str = date_obj.strftime("%Y-%m-%d")
-            time_str = date_obj.strftime("%H:%M")
-            html += (
-                f"<tr><td>{date_str}</td><td>{time_str}</td><td>{session[2]:.1f}</td>"
-                f"<td>{session[3]:.1f}%</td><td>{session[5]}</td><td>{session[6]}</td>"
-                f"<td>{session[7]:.1f}%</td></tr>"
-            )
-        html += "</table>"
-        return html
+    def _session_cells(session: list) -> list[str]:
+        date_obj = datetime.fromisoformat(session[1])
+        return [
+            date_obj.strftime("%Y-%m-%d"),
+            date_obj.strftime("%H:%M"),
+            f"{session[2]:.1f}",
+            f"{session[3]:.1f}%",
+            f"{session[5]}",
+            f"{session[6]}",
+            f"{session[7]:.1f}%",
+        ]
+
+    def _populate_sessions_table(self) -> None:
+        sessions = self.data_manager.get_all_sessions()
+        self.sessions_table.setRowCount(len(sessions))
+        for row, session in enumerate(sessions):
+            for column, text in enumerate(self._session_cells(session)):
+                item = QTableWidgetItem(text)
+                if column == 0:
+                    item.setData(Qt.UserRole, session[0])
+                self.sessions_table.setItem(row, column, item)
+        self._update_delete_button()
+
+    def _selected_session_id(self) -> int | None:
+        row = self.sessions_table.currentRow()
+        if row < 0 or not self.sessions_table.selectionModel().hasSelection():
+            return None
+        item = self.sessions_table.item(row, 0)
+        return None if item is None else item.data(Qt.UserRole)
+
+    def _update_delete_button(self) -> None:
+        self.delete_button.setEnabled(self._selected_session_id() is not None)
+
+    def _delete_selected_session(self) -> None:
+        session_id = self._selected_session_id()
+        if session_id is None:
+            return
+
+        if not confirm(self, "Delete session", "Delete this session? This cannot be undone."):
+            return
+
+        self.data_manager.delete_session(session_id)
+        self.data_manager.update_streaks()
+        self._update_summary()
+        self._rebuild_tabs()
 
     def _build_analytics_tab(self) -> QWidget:
         widget = QWidget()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStyle,
     QTextBrowser,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -26,33 +25,7 @@ from fingerpunch.text_generator import generate_mixed_text
 from fingerpunch.ui import styles
 from fingerpunch.ui.history_dialog import HistoryDialog
 from fingerpunch.ui.results_dialog import NEW_TEXT_RESULT, ResultsDialog
-
-
-def show_message(parent: QWidget, title: str, message: str) -> None:
-    """A simple modal message box, styled to match the app."""
-    dialog = QDialog(parent)
-    dialog.setWindowTitle(title)
-    dialog.setStyleSheet(styles.WINDOW_STYLE)
-    dialog.setFixedSize(400, 200)
-
-    layout = QVBoxLayout()
-    layout.setSpacing(16)
-    layout.setContentsMargins(24, 24, 24, 24)
-
-    msg_label = QLabel(message)
-    msg_label.setFont(styles.ui_font(12))
-    msg_label.setStyleSheet(f"color: {styles.TEXT_SECONDARY};")
-    msg_label.setWordWrap(True)
-    layout.addWidget(msg_label)
-
-    close_button = QPushButton("Close")
-    close_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
-    close_button.setStyleSheet(styles.secondary_button_style())
-    close_button.clicked.connect(dialog.reject)
-    layout.addWidget(close_button, alignment=Qt.AlignCenter)
-
-    dialog.setLayout(layout)
-    dialog.exec()
+from fingerpunch.ui.widgets import TypingInput, show_message
 
 
 class TypingPracticeApp(QWidget):
@@ -125,7 +98,7 @@ class TypingPracticeApp(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 20, 16, 16)
 
-        self.input_edit = QTextEdit()
+        self.input_edit = TypingInput()
         self.input_edit.setFont(styles.ui_font(16))
         self.input_edit.setStyleSheet(styles.text_surface_style())
         self.input_edit.setMinimumHeight(140)

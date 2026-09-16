@@ -4,10 +4,12 @@ import sqlite3
 from datetime import datetime, timedelta
 
 import pytest
-from PySide6.QtWidgets import QLabel, QTextBrowser
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QAbstractItemView, QLabel, QTextBrowser
 
 from fingerpunch.data_manager import DataManager
-from fingerpunch.ui.history_dialog import HistoryDialog
+from fingerpunch.ui import history_dialog
+from fingerpunch.ui.history_dialog import SESSION_COLUMNS, HistoryDialog
 
 CHART_TYPES = ["Performance Overview", "Recent Activity", "Performance by Length"]
 
@@ -49,37 +51,172 @@ def dialog(qapp):
         widget.deleteLater()
 
 
-class TestHistoryTable:
-    def test_an_empty_history_still_renders_a_header_row(self):
-        html = HistoryDialog._history_html([])
+class TestSessionTable:
+    def test_an_empty_history_shows_headers_and_no_rows(self, dialog, db):
+        widget = dialog(db)
 
-        assert "<th>Date</th>" in html
-        assert html.count("<tr>") == 1
+        assert widget.sessions_table.rowCount() == 0
+        headers = [
+            widget.sessions_table.horizontalHeaderItem(i).text()
+            for i in range(widget.sessions_table.columnCount())
+        ]
+        assert headers == SESSION_COLUMNS
 
-    def test_each_session_becomes_one_row(self):
-        html = HistoryDialog._history_html([session_row(), session_row(), session_row()])
+    def test_each_session_becomes_one_row(self, dialog, db):
+        for _ in range(3):
+            insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
 
-        assert html.count("<tr>") == 4
+        assert widget.sessions_table.rowCount() == 3
 
     def test_each_value_lands_in_its_own_column(self):
-        html = HistoryDialog._history_html([
+        cells = HistoryDialog._session_cells(
             session_row(wpm=61.25, accuracy=93.46, total_chars=237, keystrokes=259, efficiency=88.4)
-        ])
+        )
 
-        row = html.split("<tr>")[-1]
-        cells = [cell.split("</td>")[0] for cell in row.split("<td>")[1:]]
         assert cells == ["2026-03-01", "14:30", "61.2", "93.5%", "237", "259", "88.4%"]
 
     def test_the_timestamp_is_split_into_date_and_time(self):
-        html = HistoryDialog._history_html([session_row(date="2026-12-25T09:05:59")])
+        cells = HistoryDialog._session_cells(session_row(date="2026-12-25T09:05:59"))
 
-        assert "<td>2026-12-25</td><td>09:05</td>" in html
+        assert cells[:2] == ["2026-12-25", "09:05"]
 
     def test_time_taken_is_not_mistaken_for_a_displayed_column(self):
-        html = HistoryDialog._history_html([session_row(time_taken=1234.5, total_chars=237)])
+        cells = HistoryDialog._session_cells(session_row(time_taken=1234.5, total_chars=237))
 
-        assert "1234.5" not in html
-        assert "237" in html
+        assert "1234.5" not in cells
+        assert "237" in cells
+
+    def test_the_row_carries_the_session_id(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+
+        stored = widget.sessions_table.item(0, 0).data(Qt.UserRole)
+        assert stored == db.get_all_sessions()[0][0]
+
+    def test_cells_cannot_be_edited(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+
+        assert widget.sessions_table.editTriggers() == QAbstractItemView.NoEditTriggers
+
+
+class TestDeleteSession:
+    def test_the_delete_button_starts_disabled(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+
+        assert widget.delete_button.isEnabled() is False
+
+    def test_selecting_a_row_enables_the_delete_button(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+
+        widget.sessions_table.selectRow(0)
+
+        assert widget.delete_button.isEnabled() is True
+
+    def test_confirming_removes_the_session(self, dialog, db, monkeypatch):
+        insert_session_at(db, datetime.now().isoformat(), wpm=40.0)
+        insert_session_at(db, datetime.now().isoformat(), wpm=90.0)
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: True)
+
+        widget.sessions_table.selectRow(0)
+        widget._delete_selected_session()
+
+        assert len(db.get_all_sessions()) == 1
+        assert widget.sessions_table.rowCount() == 1
+
+    def test_cancelling_keeps_the_session(self, dialog, db, monkeypatch):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: False)
+
+        widget.sessions_table.selectRow(0)
+        widget._delete_selected_session()
+
+        assert len(db.get_all_sessions()) == 1
+        assert widget.sessions_table.rowCount() == 1
+
+    def test_deleting_with_nothing_selected_does_nothing(self, dialog, db, monkeypatch):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+        asked = []
+        monkeypatch.setattr(history_dialog, "confirm", lambda *a, **k: asked.append(True) or True)
+
+        widget._delete_selected_session()
+
+        assert asked == []
+        assert len(db.get_all_sessions()) == 1
+
+    def test_the_row_removed_is_the_row_selected(self, dialog, db, monkeypatch):
+        insert_session_at(db, "2026-03-01T10:00:00", wpm=40.0)
+        insert_session_at(db, "2026-03-02T10:00:00", wpm=90.0)
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: True)
+
+        doomed = widget.sessions_table.item(0, 0).data(Qt.UserRole)
+        widget.sessions_table.selectRow(0)
+        widget._delete_selected_session()
+
+        remaining = [session[0] for session in db.get_all_sessions()]
+        assert doomed not in remaining
+
+    def test_deleting_updates_the_summary_line(self, dialog, db, monkeypatch):
+        insert_session_at(db, datetime.now().isoformat(), wpm=40.0)
+        insert_session_at(db, datetime.now().isoformat(), wpm=900.0)
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: True)
+        assert "Best WPM: 900.0" in widget.summary_label.text()
+
+        row = next(
+            i for i in range(widget.sessions_table.rowCount())
+            if widget.sessions_table.item(i, 2).text() == "900.0"
+        )
+        widget.sessions_table.selectRow(row)
+        widget._delete_selected_session()
+
+        assert "Best WPM: 40.0" in widget.summary_label.text()
+
+    def test_deleting_the_last_session_hides_the_summary(self, dialog, db, monkeypatch):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: True)
+
+        widget.sessions_table.selectRow(0)
+        widget._delete_selected_session()
+
+        assert widget.summary_label.text() == ""
+        assert widget.sessions_table.rowCount() == 0
+
+    def test_deleting_recalculates_the_streak(self, dialog, db, monkeypatch):
+        insert_session_at(db, (datetime.now() - timedelta(days=1)).isoformat())
+        insert_session_at(db, datetime.now().isoformat())
+        db.update_streaks()
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: True)
+        assert db.get_streak_info()["current_streak"] == 2
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        row = next(
+            i for i in range(widget.sessions_table.rowCount())
+            if widget.sessions_table.item(i, 0).text() == today
+        )
+        widget.sessions_table.selectRow(row)
+        widget._delete_selected_session()
+
+        assert db.get_streak_info()["current_streak"] == 0
+
+    def test_the_delete_button_disables_again_after_the_last_row_goes(self, dialog, db, monkeypatch):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+        monkeypatch.setattr(history_dialog, "confirm", lambda *args, **kwargs: True)
+
+        widget.sessions_table.selectRow(0)
+        widget._delete_selected_session()
+
+        assert widget.delete_button.isEnabled() is False
 
 
 class TestAnalyticsCharts:

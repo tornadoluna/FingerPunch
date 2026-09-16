@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import NamedTuple, Protocol
 
 from fingerpunch.camera.source import (
+    DEFAULT_RESOLUTION,
     CameraUnavailable,
     FrameSource,
     OpenCVCamera,
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 MAX_PROBED_INDEX = 10
 MAX_CONSECUTIVE_MISSES = 2
 DEVICE_SETTING = "camera_device_index"
+RESOLUTION_SETTING = "camera_resolution"
+RESOLUTION_CHOICES: tuple[tuple[int, int], ...] = ((640, 480), (1280, 720), (1920, 1080))
 
 
 class CameraDevice(NamedTuple):
@@ -112,3 +115,25 @@ def saved_device_index(settings: SettingsStore | None, default: int = 0) -> int:
 def remember_device_index(settings: SettingsStore | None, index: int) -> None:
     if settings is not None:
         settings.save_setting(DEVICE_SETTING, index)
+
+
+def saved_resolution(
+    settings: SettingsStore | None,
+    default: tuple[int, int] = DEFAULT_RESOLUTION,
+) -> tuple[int, int]:
+    if settings is None:
+        return default
+
+    value = settings.get_setting(RESOLUTION_SETTING, None)
+    if (
+        isinstance(value, (list, tuple))
+        and len(value) == 2
+        and all(isinstance(part, int) and part > 0 for part in value)
+    ):
+        return (value[0], value[1])
+    return default
+
+
+def remember_resolution(settings: SettingsStore | None, resolution: tuple[int, int]) -> None:
+    if settings is not None:
+        settings.save_setting(RESOLUTION_SETTING, list(resolution))

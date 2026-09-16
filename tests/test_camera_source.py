@@ -17,10 +17,19 @@ class FakeArray:
 
 
 class FakeCapture:
-    def __init__(self, opened=True, frames=None):
+    def __init__(self, opened=True, frames=None, granted=(1280, 720)):
         self._opened = opened
         self._frames = list(frames) if frames is not None else [FakeArray()]
         self.released = False
+        self.settings = {}
+        self._granted = granted
+
+    def set(self, prop, value):
+        self.settings[prop] = value
+        return True
+
+    def get(self, prop):
+        return {3: self._granted[0], 4: self._granted[1]}.get(prop, 0)
 
     def isOpened(self):
         return self._opened
@@ -234,3 +243,37 @@ class TestQuietOpenCV:
             raise ValueError("boom")
 
         assert cv2.utils.logging.getLogLevel() == before
+
+
+class TestCaptureFormat:
+    def test_it_asks_for_mjpg_and_the_requested_size(self, fake_cv2):
+        capture = FakeCapture()
+        fake_cv2.VideoCapture.return_value = capture
+        fake_cv2.CAP_PROP_FOURCC = 6
+        fake_cv2.CAP_PROP_FRAME_WIDTH = 3
+        fake_cv2.CAP_PROP_FRAME_HEIGHT = 4
+        fake_cv2.VideoWriter_fourcc.return_value = 1196444237
+
+        OpenCVCamera(0, resolution=(1280, 720)).open()
+
+        fake_cv2.VideoWriter_fourcc.assert_called_once_with("M", "J", "P", "G")
+        assert capture.settings[3] == 1280
+        assert capture.settings[4] == 720
+
+    def test_the_default_resolution_is_seven_twenty(self):
+        assert OpenCVCamera().resolution == (1280, 720)
+
+    def test_a_requested_resolution_is_kept(self):
+        assert OpenCVCamera(0, resolution=(1920, 1080)).resolution == (1920, 1080)
+
+    def test_a_backend_that_rejects_the_request_still_opens(self, fake_cv2):
+        class Awkward(FakeCapture):
+            def set(self, prop, value):
+                raise AttributeError("no such property")
+
+        fake_cv2.VideoCapture.return_value = Awkward()
+
+        camera = OpenCVCamera(0)
+        camera.open()
+
+        assert camera.read() is not None

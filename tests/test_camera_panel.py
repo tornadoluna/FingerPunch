@@ -54,9 +54,10 @@ class FakeSettings:
 def panel(qapp):
     controllers = []
 
-    def factory(device_index):
+    def factory(device_index, resolution):
         controller = FakeController()
         controller.device_index = device_index
+        controller.resolution = resolution
         controllers.append(controller)
         return controller
 
@@ -74,7 +75,7 @@ class TestDeviceSelection:
 
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i: seen.append(i) or FakeController(),
+            controller_factory=lambda i, r: seen.append(i) or FakeController(),
             probe=list,
         )
 
@@ -92,7 +93,7 @@ class TestDeviceSelection:
         assert labels == ["Camera 0 (640x480)", "Camera 1 (640x480)", "Camera 2 (640x480)"]
 
     def test_detecting_nothing_reports_it(self, qapp):
-        widget = CameraPanel(controller_factory=lambda i: FakeController(), probe=list)
+        widget = CameraPanel(controller_factory=lambda i, r: FakeController(), probe=list)
 
         widget.detect_devices()
 
@@ -111,7 +112,7 @@ class TestDeviceSelection:
         settings = FakeSettings()
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i: FakeController(),
+            controller_factory=lambda i, r: FakeController(),
             probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1)],
         )
         widget.detect_devices()
@@ -152,7 +153,7 @@ class TestDeviceSelection:
         settings = FakeSettings({"camera_device_index": 7})
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i: FakeController(),
+            controller_factory=lambda i, r: FakeController(),
             probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1)],
         )
 
@@ -162,13 +163,75 @@ class TestDeviceSelection:
         widget.deleteLater()
 
 
+class TestResolution:
+    def test_it_defaults_to_seven_twenty(self, panel):
+        assert panel.resolution == (1280, 720)
+
+    def test_the_controller_is_built_with_the_resolution(self, panel):
+        assert panel._controllers[0].resolution == (1280, 720)
+
+    def test_a_saved_resolution_is_used(self, qapp):
+        settings = FakeSettings({"camera_resolution": [1920, 1080]})
+        seen = []
+
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i, r: seen.append(r) or FakeController(),
+            probe=list,
+        )
+
+        assert widget.resolution == (1920, 1080)
+        assert seen == [(1920, 1080)]
+        widget.deleteLater()
+
+    def test_choosing_a_resolution_rebuilds_the_controller(self, panel):
+        panel.resolution_combo.setCurrentIndex(0)
+
+        assert panel.resolution == (640, 480)
+        assert panel._controllers[-1].resolution == (640, 480)
+
+    def test_choosing_a_resolution_is_remembered(self, qapp):
+        settings = FakeSettings()
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i, r: FakeController(),
+            probe=list,
+        )
+
+        widget.resolution_combo.setCurrentIndex(2)
+
+        assert settings.stored["camera_resolution"] == [1920, 1080]
+        widget.deleteLater()
+
+    def test_changing_resolution_while_live_restarts_the_camera(self, panel):
+        panel.toggle.setChecked(True)
+        assert panel._controllers[0].started == 1
+
+        panel.resolution_combo.setCurrentIndex(0)
+
+        assert panel._controllers[0].stopped == 1
+        assert panel._controllers[-1].started == 1
+
+    def test_a_nonsense_saved_resolution_falls_back(self, qapp):
+        settings = FakeSettings({"camera_resolution": "big"})
+
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i, r: FakeController(),
+            probe=list,
+        )
+
+        assert widget.resolution == (1280, 720)
+        widget.deleteLater()
+
+
 class TestControllerSubstitution:
     def test_the_default_controller_is_resolved_at_construction_time(self, qapp, monkeypatch):
         created = []
         monkeypatch.setattr(
             camera_panel,
             "_default_controller_factory",
-            lambda index: created.append(index) or FakeController(),
+            lambda index, resolution: created.append(index) or FakeController(),
         )
 
         widget = CameraPanel()

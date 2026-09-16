@@ -2,11 +2,14 @@ import pytest
 
 from fingerpunch.camera.devices import (
     DEVICE_SETTING,
+    RESOLUTION_SETTING,
     CameraDevice,
     delivers_frames,
     probe_devices,
     remember_device_index,
+    remember_resolution,
     saved_device_index,
+    saved_resolution,
 )
 from fingerpunch.camera.source import CameraUnavailable, Frame
 
@@ -166,3 +169,62 @@ class TestRealSettingsStore:
 @pytest.fixture(autouse=True)
 def _guard(no_real_camera):
     return no_real_camera
+
+
+class TestResolutionSetting:
+    def test_the_default_is_seven_twenty(self):
+        assert saved_resolution(FakeSettings()) == (1280, 720)
+
+    def test_a_stored_resolution_is_returned(self):
+        assert saved_resolution(FakeSettings({RESOLUTION_SETTING: [1920, 1080]})) == (1920, 1080)
+
+    def test_a_stored_tuple_is_accepted(self):
+        assert saved_resolution(FakeSettings({RESOLUTION_SETTING: (640, 480)})) == (640, 480)
+
+    @pytest.mark.parametrize("stored", [
+        "1280x720",
+        [1280],
+        [1280, 720, 30],
+        ["1280", "720"],
+        [1280, "720"],
+        [0, 720],
+        [1280, 0],
+        [-1280, -720],
+        [1280.0, 720.0],
+        None,
+        {},
+    ])
+    def test_a_nonsense_stored_resolution_falls_back(self, stored):
+        assert saved_resolution(FakeSettings({RESOLUTION_SETTING: stored})) == (1280, 720)
+
+    def test_no_settings_store_uses_the_default(self):
+        assert saved_resolution(None) == (1280, 720)
+
+    def test_an_explicit_default_is_honoured(self):
+        assert saved_resolution(None, default=(800, 600)) == (800, 600)
+
+    def test_a_choice_is_stored_as_a_plain_list(self):
+        settings = FakeSettings()
+
+        remember_resolution(settings, (1920, 1080))
+
+        assert settings.stored[RESOLUTION_SETTING] == [1920, 1080]
+
+    def test_storing_without_a_settings_store_is_harmless(self):
+        remember_resolution(None, (640, 480))
+
+    def test_the_choice_survives_a_round_trip(self):
+        settings = FakeSettings()
+
+        remember_resolution(settings, (1920, 1080))
+
+        assert saved_resolution(settings) == (1920, 1080)
+
+    def test_it_round_trips_through_a_real_database(self, tmp_path):
+        from fingerpunch.data_manager import DataManager
+
+        db = DataManager(str(tmp_path / "r.db"))
+
+        remember_resolution(db, (1920, 1080))
+
+        assert saved_resolution(db) == (1920, 1080)

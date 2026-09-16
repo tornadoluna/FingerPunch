@@ -10,6 +10,8 @@ from typing import Any, NamedTuple, Protocol
 logger = logging.getLogger(__name__)
 
 DEFAULT_DEVICE_INDEX = 0
+DEFAULT_RESOLUTION = (1280, 720)
+CAPTURE_CODEC = "MJPG"
 
 
 class CameraUnavailable(RuntimeError):
@@ -41,6 +43,21 @@ def load_opencv() -> Any:
     return cv2
 
 
+def _request_format(cv2: Any, capture: Any, resolution: tuple[int, int]) -> tuple[int, int]:
+    width, height = resolution
+    try:
+        capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*CAPTURE_CODEC))
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        return (
+            int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
+    except (AttributeError, TypeError, ValueError):
+        logger.warning("Could not request %sx%s from camera", width, height)
+        return resolution
+
+
 @contextmanager
 def quiet_opencv() -> Iterator[None]:
     try:
@@ -66,8 +83,13 @@ def quiet_opencv() -> Iterator[None]:
 
 
 class OpenCVCamera:
-    def __init__(self, device_index: int = DEFAULT_DEVICE_INDEX) -> None:
+    def __init__(
+        self,
+        device_index: int = DEFAULT_DEVICE_INDEX,
+        resolution: tuple[int, int] = DEFAULT_RESOLUTION,
+    ) -> None:
         self.device_index = device_index
+        self.resolution = resolution
         self._capture: Any = None
 
     def open(self) -> None:
@@ -80,7 +102,15 @@ class OpenCVCamera:
             capture.release()
             raise CameraUnavailable(f"No camera found at index {self.device_index}")
 
-        logger.info("Opened camera %s", self.device_index)
+        granted = _request_format(cv2, capture, self.resolution)
+        logger.info(
+            "Opened camera %s at %sx%s (requested %sx%s)",
+            self.device_index,
+            granted[0],
+            granted[1],
+            self.resolution[0],
+            self.resolution[1],
+        )
         self._capture = capture
 
     def read(self) -> Frame | None:

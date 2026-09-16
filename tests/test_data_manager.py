@@ -6,7 +6,14 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from fingerpunch.data_manager import DataManager
+from fingerpunch.data_manager import (
+    MIGRATIONS,
+    SCHEMA_VERSION,
+    DataManager,
+    LengthPerformance,
+    Session,
+    StreakDay,
+)
 
 
 @pytest.fixture
@@ -79,14 +86,189 @@ class TestSaveAndRetrieve:
 
         assert [s[2] for s in db.get_all_sessions()] == [30.0, 20.0, 10.0]
 
-    def test_date_range_query_is_inclusive_of_both_ends(self, db):
-        insert_session_at(db, '2026-01-01T00:00:00', wpm=1.0)
-        insert_session_at(db, '2026-01-15T00:00:00', wpm=2.0)
-        insert_session_at(db, '2026-02-01T00:00:00', wpm=3.0)
 
-        found = db.get_sessions_by_date_range('2026-01-01T00:00:00', '2026-01-15T00:00:00')
+def legacy_database(path):
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            'CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL,'
+            ' wpm REAL NOT NULL, accuracy REAL NOT NULL, time_taken REAL NOT NULL,'
+            ' total_chars INTEGER NOT NULL, keystrokes INTEGER NOT NULL, efficiency REAL NOT NULL,'
+            ' text_length INTEGER NOT NULL, sample_text TEXT)'
+        )
+        conn.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)')
+        conn.execute(
+            'CREATE TABLE streaks (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL,'
+            ' sessions_count INTEGER DEFAULT 0, current_streak INTEGER DEFAULT 0,'
+            ' longest_streak INTEGER DEFAULT 0)'
+        )
+        conn.commit()
+    return path
 
-        assert sorted(s[2] for s in found) == [1.0, 2.0]
+
+class TestRowTypes:
+    def test_sessions_come_back_as_named_rows(self, db):
+        db.save_session(make_stats(wpm=61.25, accuracy=93.46), "sample text")
+
+        session = db.get_all_sessions()[0]
+
+        assert isinstance(session, Session)
+        assert session.wpm == 61.25
+        assert session.accuracy == 93.46
+        assert session.sample_text == "sample text"
+
+    def test_named_and_positional_access_agree(self, db):
+        db.save_session(make_stats())
+
+        session = db.get_all_sessions()[0]
+
+        assert session[1] == session.date
+        assert session[2] == session.wpm
+        assert session[7] == session.efficiency
+
+    def test_performance_by_length_rows_are_named(self, db):
+        insert_session_at(db, datetime.now().isoformat(), text_length=50)
+
+        row = db.get_performance_by_length()[0]
+
+        assert isinstance(row, LengthPerformance)
+        assert row.text_length == 50
+        assert row.test_count == 1
+
+    def test_streak_history_rows_are_named(self, db):
+        db.update_streaks()
+
+        row = db.get_streak_history(30)[0]
+
+        assert isinstance(row, StreakDay)
+        assert row.date == datetime.now().date().isoformat()
+
+    def test_a_new_column_does_not_disturb_the_session_row(self, db):
+        db.save_session(make_stats(wpm=61.25), "sample text")
+        with sqlite3.connect(db.db_path) as conn:
+            conn.execute('ALTER TABLE sessions ADD COLUMN hand_position_score REAL')
+            conn.commit()
+
+        session = db.get_all_sessions()[0]
+
+        assert len(session) == len(Session._fields)
+        assert session.wpm == 61.25
+        assert session.sample_text == "sample text"
+
+    def test_export_and_import_survive_a_new_column(self, db, tmp_path):
+        db.save_session(make_stats(wpm=61.25), "sample text")
+        for target in (db, ):
+            with sqlite3.connect(target.db_path) as conn:
+                conn.execute('ALTER TABLE sessions ADD COLUMN hand_position_score REAL')
+                conn.commit()
+        export = tmp_path / "export.json"
+        db.export_data(str(export))
+
+        fresh = DataManager(str(tmp_path / "fresh.db"))
+        with sqlite3.connect(fresh.db_path) as conn:
+            conn.execute('ALTER TABLE sessions ADD COLUMN hand_position_score REAL')
+            conn.commit()
+        fresh.import_data(str(export))
+
+        imported = fresh.get_all_sessions()
+        assert len(imported) == 1
+        original = db.get_all_sessions()[0]
+        for field in Session._fields:
+            if field == "id":
+                continue
+            assert getattr(imported[0], field) == getattr(original, field), field
+
+
+class TestMigrations:
+    def test_a_fresh_database_is_stamped_at_the_current_version(self, db):
+        assert db.schema_version() == SCHEMA_VERSION
+
+    def test_the_version_is_the_number_of_migrations(self):
+        assert SCHEMA_VERSION == len(MIGRATIONS)
+
+    def test_a_legacy_database_is_brought_up_to_date(self, tmp_path):
+        path = legacy_database(str(tmp_path / "legacy.db"))
+        with sqlite3.connect(path) as conn:
+            assert conn.execute('PRAGMA user_version').fetchone()[0] == 0
+
+        assert DataManager(path).schema_version() == SCHEMA_VERSION
+
+    def test_migrating_a_legacy_database_preserves_its_sessions(self, tmp_path):
+        path = legacy_database(str(tmp_path / "legacy.db"))
+        with sqlite3.connect(path) as conn:
+            conn.execute(
+                'INSERT INTO sessions (date, wpm, accuracy, time_taken, total_chars,'
+                ' keystrokes, efficiency, text_length, sample_text)'
+                " VALUES ('2026-03-01T10:00:00', 55.0, 97.0, 30.0, 200, 210, 95.0, 50, 'kept')",
+            )
+            conn.commit()
+
+        sessions = DataManager(path).get_all_sessions()
+
+        assert len(sessions) == 1
+        assert sessions[0][9] == 'kept'
+
+    def test_duplicate_streak_rows_collapse_to_the_newest_per_day(self, tmp_path):
+        path = legacy_database(str(tmp_path / "legacy.db"))
+        with sqlite3.connect(path) as conn:
+            for value in (1, 2, 3, 4):
+                conn.execute(
+                    'INSERT INTO streaks (date, sessions_count, current_streak, longest_streak)'
+                    " VALUES ('2026-03-01', ?, ?, ?)",
+                    (value, value, value),
+                )
+            conn.commit()
+
+        DataManager(path)
+
+        with sqlite3.connect(path) as conn:
+            rows = conn.execute('SELECT sessions_count FROM streaks').fetchall()
+        assert rows == [(4,)]
+
+    def test_one_day_can_no_longer_hold_two_streak_rows(self, db):
+        db.update_streaks()
+
+        with pytest.raises(sqlite3.IntegrityError), sqlite3.connect(db.db_path) as conn:
+            conn.execute(
+                'INSERT INTO streaks (date, sessions_count, current_streak, longest_streak)'
+                " VALUES (DATE('now'), 1, 1, 1)",
+            )
+
+    def test_reopening_a_current_database_runs_no_migrations(self, db, monkeypatch):
+        ran = []
+        monkeypatch.setattr(
+            'fingerpunch.data_manager.MIGRATIONS',
+            [lambda conn, step=step: ran.append(step) for step in range(SCHEMA_VERSION)],
+        )
+
+        DataManager(db.db_path)
+
+        assert ran == []
+
+    def test_only_the_outstanding_migrations_run(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "partial.db")
+        legacy_database(path)
+        with sqlite3.connect(path) as conn:
+            conn.execute('PRAGMA user_version = 1')
+            conn.commit()
+        ran = []
+        monkeypatch.setattr(
+            'fingerpunch.data_manager.MIGRATIONS',
+            [lambda conn: ran.append(1), lambda conn: ran.append(2)],
+        )
+
+        DataManager(path)
+
+        assert ran == [2]
+
+    def test_opening_the_same_database_repeatedly_is_stable(self, tmp_path):
+        path = str(tmp_path / "repeat.db")
+        for _ in range(3):
+            DataManager(path)
+
+        with sqlite3.connect(path) as conn:
+            assert conn.execute('PRAGMA user_version').fetchone()[0] == SCHEMA_VERSION
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert {'sessions', 'settings', 'streaks'} <= tables
 
 
 class TestDeleteSession:
@@ -360,7 +542,76 @@ class TestStreaks:
         assert db.get_streak_info()['current_streak'] == 3, "Feb 27, Feb 28 and Mar 1 are consecutive"
 
 
+class TestStreakHistoryWindow:
+    def _record_streak_on(self, db, day, sessions_count):
+        with sqlite3.connect(db.db_path) as conn:
+            conn.execute(
+                'INSERT INTO streaks (date, sessions_count, current_streak, longest_streak)'
+                ' VALUES (?, ?, 1, 1)',
+                (day.isoformat(), sessions_count),
+            )
+            conn.commit()
+
+    def test_only_days_inside_the_window_are_returned(self, db):
+        today = datetime.now().date()
+        self._record_streak_on(db, today, 1)
+        self._record_streak_on(db, today - timedelta(days=5), 2)
+        self._record_streak_on(db, today - timedelta(days=40), 3)
+
+        counts = [row[1] for row in db.get_streak_history(30)]
+
+        assert sorted(counts) == [1, 2]
+
+    def test_the_window_boundary_is_inclusive(self, db):
+        today = datetime.now().date()
+        self._record_streak_on(db, today - timedelta(days=30), 7)
+
+        assert [row[1] for row in db.get_streak_history(30)] == [7]
+
+    def test_a_day_just_outside_the_window_is_excluded(self, db):
+        today = datetime.now().date()
+        self._record_streak_on(db, today - timedelta(days=31), 7)
+
+        assert db.get_streak_history(30) == []
+
+    def test_a_shorter_window_returns_fewer_days(self, db):
+        today = datetime.now().date()
+        for offset in (0, 3, 10):
+            self._record_streak_on(db, today - timedelta(days=offset), offset + 1)
+
+        assert len(db.get_streak_history(30)) == 3
+        assert len(db.get_streak_history(5)) == 2
+
+    def test_results_come_back_oldest_first(self, db):
+        today = datetime.now().date()
+        self._record_streak_on(db, today, 1)
+        self._record_streak_on(db, today - timedelta(days=2), 2)
+
+        dates = [row[0] for row in db.get_streak_history(30)]
+
+        assert dates == sorted(dates)
+
+
 class TestExportImport:
+    def test_every_field_survives_the_round_trip(self, db, tmp_path):
+        db.save_session(
+            make_stats(wpm=61.25, accuracy=93.46, time=41.5, total_chars=237,
+                       keystrokes=259, efficiency=88.4),
+            "a distinctive sample",
+        )
+        export = tmp_path / "export.json"
+        db.export_data(str(export))
+
+        fresh = DataManager(str(tmp_path / "fresh.db"))
+        fresh.import_data(str(export))
+
+        original = db.get_all_sessions()[0]
+        imported = fresh.get_all_sessions()[0]
+        for field in Session._fields:
+            if field == "id":
+                continue
+            assert getattr(imported, field) == getattr(original, field), field
+
     def test_exported_data_can_be_imported_into_a_fresh_database(self, db, tmp_path):
         db.save_session(make_stats(wpm=55.0), 'hello')
         db.save_session(make_stats(wpm=65.0), 'world')
@@ -381,28 +632,6 @@ class TestExportImport:
         payload = json.loads(export_path.read_text())
         assert payload['stats']['total_sessions'] == 1
         assert len(payload['sessions']) == 1
-
-
-class TestProgressInsights:
-    def test_empty_database_produces_no_insights(self, db):
-        insights = db.get_progress_insights()
-
-        assert insights['insights'] == []
-        assert insights['stats']['total_sessions'] == 0
-
-    def test_session_count_is_reported(self, db):
-        db.save_session(make_stats())
-
-        insights = db.get_progress_insights()
-
-        assert any('1 typing sessions' in line for line in insights['insights'])
-
-    def test_century_club_is_awarded_at_100_wpm(self, db):
-        insert_session_at(db, '2026-01-01T10:00:00', wpm=105.0)
-
-        insights = db.get_progress_insights()
-
-        assert any('Century Club' in line for line in insights['insights'])
 
 
 class TestSchemaResilience:

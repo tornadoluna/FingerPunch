@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 188 pytest tests with 94% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 214 pytest tests with 98% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -47,6 +47,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Streak Tracking: Monitor daily practice streaks and build typing habits
 - Session Management: Delete a session from the history when a result is not worth keeping
 - Paste Protection: The typing area refuses pasted and dropped text, so a result reflects real typing
+- Versioned Storage: Schema migrations tracked with `PRAGMA user_version`, so the database upgrades in place
 
 ### In Development
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing (not yet started)
@@ -100,6 +101,30 @@ pytest --cov=fingerpunch --cov-report=html
 # Run specific test file
 pytest tests/test_stats_worker.py
 ```
+## Where Your Data Lives
+
+Sessions are stored in a SQLite database under your platform's user data
+directory, not in the working directory you launch from:
+
+| Platform | Location |
+| --- | --- |
+| Linux | `~/.local/share/FingerPunch/typingStats.db` |
+| macOS | `~/Library/Application Support/FingerPunch/typingStats.db` |
+| Windows | `%LOCALAPPDATA%\FingerPunch\typingStats.db` |
+
+To print the exact path on your machine:
+
+```bash
+python -c "from fingerpunch.paths import default_database_path; print(default_database_path())"
+```
+
+The schema is versioned with `PRAGMA user_version` and migrated in place on
+startup, so upgrading the app keeps existing history. Databases created before
+versioning was introduced are detected and brought up to date automatically.
+
+If you used the app before the database moved, copy your old `typingStats.db`
+to the path above to keep your history.
+
 ## How to Use
 
 ### Basic Typing Practice
@@ -136,7 +161,8 @@ FingerPunch/
 │   ├── __main__.py               # Entry point
 │   ├── stats.py                  # Statistics and keystroke tracking
 │   ├── text_generator.py         # Sentence generation
-│   ├── data_manager.py           # SQLite session persistence
+│   ├── paths.py                  # User data directory resolution
+│   ├── data_manager.py           # SQLite session persistence and migrations
 │   └── ui/                       # Qt presentation layer
 │       ├── main_window.py        # Main practice window
 │       ├── results_dialog.py     # End-of-session results
@@ -146,7 +172,8 @@ FingerPunch/
 ├── tests/                        # Test suite
 │   ├── conftest.py               # Shared Qt and window fixtures
 │   ├── test_stats_worker.py      # Keystroke, accuracy and sampling
-│   ├── test_data_manager.py      # SQLite persistence layer
+│   ├── test_data_manager.py      # SQLite persistence and migrations
+│   ├── test_paths.py             # Data directory resolution
 │   ├── test_main_window.py       # Session lifecycle and rendering
 │   ├── test_results_dialog.py    # End-of-session results
 │   ├── test_history_dialog.py    # History table, charts, deletion
@@ -165,15 +192,16 @@ FingerPunch/
 ## Testing & Quality
 
 ### Test Coverage
+- fingerpunch/paths.py: 100%
 - fingerpunch/ui/results_dialog.py: 100%
 - fingerpunch/ui/widgets.py: 100%
+- fingerpunch/data_manager.py: 99%
 - fingerpunch/stats.py: 99%
 - fingerpunch/ui/main_window.py: 99%
 - fingerpunch/ui/history_dialog.py: 98%
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/text_generator.py: 95%
-- fingerpunch/data_manager.py: 81%
-- Overall: 94% across 188 automated tests
+- Overall: 98% across 214 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

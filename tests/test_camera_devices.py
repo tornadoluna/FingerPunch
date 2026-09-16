@@ -5,6 +5,8 @@ from fingerpunch.camera.devices import (
     RESOLUTION_SETTING,
     CameraDevice,
     delivers_frames,
+    device_name,
+    is_capture_node,
     probe_devices,
     remember_device_index,
     remember_resolution,
@@ -167,7 +169,10 @@ class TestRealSettingsStore:
 
 
 @pytest.fixture(autouse=True)
-def _guard(no_real_camera):
+def _guard(no_real_camera, monkeypatch, tmp_path):
+    from fingerpunch.camera import devices
+
+    monkeypatch.setattr(devices, "V4L_SYSFS", tmp_path / "no-sysfs-here")
     return no_real_camera
 
 
@@ -228,3 +233,117 @@ class TestResolutionSetting:
         remember_resolution(db, (1920, 1080))
 
         assert saved_resolution(db) == (1920, 1080)
+
+
+def make_sysfs(tmp_path, nodes):
+    for index, (name, node_index) in nodes.items():
+        directory = tmp_path / f"video{index}"
+        directory.mkdir()
+        if name is not None:
+            (directory / "name").write_text(name + "\n")
+        if node_index is not None:
+            (directory / "index").write_text(f"{node_index}\n")
+    return tmp_path
+
+
+class TestDeviceNames:
+    def test_a_name_is_read_from_sysfs(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {0: ("C505 HD Webcam", 0)})
+
+        assert device_name(0, sysfs) == "C505 HD Webcam"
+
+    def test_a_truncated_duplicate_suffix_is_trimmed(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {0: ("Integrated Camera: Integrated C", 0)})
+
+        assert device_name(0, sysfs) == "Integrated Camera"
+
+    def test_a_genuine_colon_in_the_name_is_kept(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {0: ("Logitech: StreamCam", 0)})
+
+        assert device_name(0, sysfs) == "Logitech: StreamCam"
+
+    def test_a_missing_node_has_no_name(self, tmp_path):
+        assert device_name(9, tmp_path) is None
+
+    def test_an_empty_name_is_treated_as_missing(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {0: ("   ", 0)})
+
+        assert device_name(0, sysfs) is None
+
+    def test_a_platform_without_sysfs_has_no_names(self, tmp_path):
+        assert device_name(0, tmp_path / "does-not-exist") is None
+
+
+class TestCaptureNodes:
+    def test_index_zero_is_a_capture_node(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {0: ("Cam", 0)})
+
+        assert is_capture_node(0, sysfs) is True
+
+    def test_index_one_is_a_metadata_node(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {1: ("Cam", 1)})
+
+        assert is_capture_node(1, sysfs) is False
+
+    def test_an_unknown_node_is_probed_anyway(self, tmp_path):
+        assert is_capture_node(0, tmp_path / "does-not-exist") is True
+
+    def test_an_unreadable_index_is_probed_anyway(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {0: ("Cam", None)})
+
+        assert is_capture_node(0, sysfs) is True
+
+    def test_a_nonsense_index_is_probed_anyway(self, tmp_path):
+        directory = tmp_path / "video0"
+        directory.mkdir()
+        (directory / "index").write_text("banana")
+
+        assert is_capture_node(0, tmp_path) is True
+
+
+class TestScanningWithSysfs:
+    def test_metadata_nodes_are_never_opened(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {
+            0: ("Integrated Camera", 0),
+            1: ("Integrated Camera", 1),
+            2: ("C505 HD Webcam", 0),
+            3: ("C505 HD Webcam", 1),
+        })
+        created = []
+
+        probe_devices(4, factory_for({0, 1, 2, 3}, created), sysfs)
+
+        assert [camera.index for camera in created] == [0, 2]
+
+    def test_devices_are_labelled_with_their_names(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {
+            0: ("Integrated Camera", 0),
+            1: ("Integrated Camera", 1),
+            2: ("C505 HD Webcam", 0),
+        })
+
+        found = probe_devices(3, factory_for({0, 1, 2}), sysfs)
+
+        assert [device.label for device in found] == [
+            "Integrated Camera (640x480)",
+            "C505 HD Webcam (640x480)",
+        ]
+
+    def test_skipping_a_metadata_node_does_not_count_as_a_gap(self, tmp_path):
+        sysfs = make_sysfs(tmp_path, {
+            0: ("Cam A", 0), 1: ("Cam A", 1), 2: ("Cam A", 1), 3: ("Cam B", 0),
+        })
+
+        found = probe_devices(4, factory_for({0, 3}), sysfs)
+
+        assert [device.index for device in found] == [0, 3]
+
+    def test_without_sysfs_every_index_is_still_probed(self, tmp_path):
+        found = probe_devices(3, factory_for({0, 1, 2}), tmp_path / "none")
+
+        assert [device.index for device in found] == [0, 1, 2]
+        assert [device.label for device in found] == [
+            "Camera 0 (640x480)",
+            "Camera 1 (640x480)",
+            "Camera 2 (640x480)",
+        ]

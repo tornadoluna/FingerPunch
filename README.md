@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 538 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 553 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -179,8 +179,9 @@ to the path above to keep your history.
 ### Choosing a Camera
 The camera is off by default. Enable it in the CAMERA panel, and if the wrong
 input is used, press **Detect** to list the cameras attached to the machine and
-pick one from the dropdown. Each entry shows its resolution, which helps when a
-machine exposes several nodes for the same physical camera. The choice is saved
+pick one from the dropdown. On Linux each entry is named after the hardware, so
+a plugged-in webcam appears as something like "C505 HD Webcam (1280x720)"
+rather than an index. Elsewhere entries fall back to "Camera 0 (1280x720)". The choice is saved
 and reused next time, so plugging in a webcam only needs sorting out once.
 
 Detection runs only when you press the button, so no camera is opened without
@@ -275,7 +276,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 538 automated tests
+- Overall: 99% across 553 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

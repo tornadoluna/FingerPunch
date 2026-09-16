@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import NamedTuple, Protocol
 
 from fingerpunch.camera.source import (
@@ -14,6 +15,7 @@ from fingerpunch.camera.source import (
 
 logger = logging.getLogger(__name__)
 
+V4L_SYSFS = Path("/sys/class/video4linux")
 MAX_PROBED_INDEX = 10
 MAX_CONSECUTIVE_MISSES = 2
 DEVICE_SETTING = "camera_device_index"
@@ -25,10 +27,36 @@ class CameraDevice(NamedTuple):
     index: int
     width: int
     height: int
+    name: str | None = None
 
     @property
     def label(self) -> str:
-        return f"Camera {self.index} ({self.width}x{self.height})"
+        who = self.name or f"Camera {self.index}"
+        return f"{who} ({self.width}x{self.height})"
+
+
+def device_name(index: int, sysfs: Path | None = None) -> str | None:
+    sysfs = V4L_SYSFS if sysfs is None else sysfs
+    try:
+        name = (sysfs / f"video{index}" / "name").read_text().strip()
+    except OSError:
+        return None
+    return _tidy_name(name) or None
+
+
+def _tidy_name(name: str) -> str:
+    head, separator, tail = name.partition(": ")
+    if separator and tail and head.lower().startswith(tail.lower()):
+        return head.strip()
+    return name.strip()
+
+
+def is_capture_node(index: int, sysfs: Path | None = None) -> bool:
+    sysfs = V4L_SYSFS if sysfs is None else sysfs
+    try:
+        return int((sysfs / f"video{index}" / "index").read_text().strip()) == 0
+    except (OSError, ValueError):
+        return True
 
 
 class SettingsStore(Protocol):
@@ -40,9 +68,10 @@ class SettingsStore(Protocol):
 def probe_devices(
     max_index: int = MAX_PROBED_INDEX,
     camera_factory: Callable[[int], FrameSource] = OpenCVCamera,
+    sysfs: Path | None = None,
 ) -> list[CameraDevice]:
     with quiet_opencv():
-        found, failures = _scan(max_index, camera_factory)
+        found, failures = _scan(max_index, camera_factory, sysfs)
 
     for index, error in failures:
         logger.warning("Probing camera %s failed: %s", index, error)
@@ -53,13 +82,17 @@ def probe_devices(
 def _scan(
     max_index: int,
     camera_factory: Callable[[int], FrameSource],
+    sysfs: Path | None = None,
 ) -> tuple[list[CameraDevice], list[tuple[int, Exception]]]:
     found: list[CameraDevice] = []
     failures: list[tuple[int, Exception]] = []
     misses = 0
 
     for index in range(max_index):
-        device, error = _probe_one(index, camera_factory)
+        if not is_capture_node(index, sysfs):
+            continue
+
+        device, error = _probe_one(index, camera_factory, sysfs)
         if error is not None:
             failures.append((index, error))
 
@@ -78,6 +111,7 @@ def _scan(
 def _probe_one(
     index: int,
     camera_factory: Callable[[int], FrameSource],
+    sysfs: Path | None = None,
 ) -> tuple[CameraDevice | None, Exception | None]:
     camera = None
     try:
@@ -86,7 +120,7 @@ def _probe_one(
         frame = camera.read()
         if frame is None:
             return None, None
-        return CameraDevice(index, frame.width, frame.height), None
+        return CameraDevice(index, frame.width, frame.height, device_name(index, sysfs)), None
     except CameraUnavailable:
         return None, None
     except Exception as error:  # noqa: BLE001

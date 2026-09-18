@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QLabel, QTextBrowser
 
 from fingerpunch.data_manager import DataManager, Session
-from fingerpunch.ui import history_dialog
+from fingerpunch.ui import history_dialog, styles
 from fingerpunch.ui.history_dialog import SESSION_COLUMNS, HistoryDialog
 
 CHART_TYPES = ["Performance Overview", "Recent Activity", "Performance by Length"]
@@ -299,6 +299,30 @@ class TestSummaryLine:
         summary = next(text for text in texts if text.startswith("Total Sessions:"))
         assert "Total Sessions: 2" in summary
         assert "Best WPM: 80.0" in summary
+
+
+class TestProgressStyling:
+    def test_the_panels_use_the_neutral_border(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat())
+        widget = dialog(db)
+
+        from PySide6.QtWidgets import QGroupBox
+
+        for group in widget.findChildren(QGroupBox):
+            assert styles.SUCCESS not in group.styleSheet(), group.title()
+            assert styles.WARNING not in group.styleSheet(), group.title()
+
+    def test_progress_labels_do_not_paint_their_own_background(self, dialog, db):
+        insert_session_at(db, datetime.now().isoformat(), wpm=77.0)
+        widget = dialog(db)
+
+        styled = [
+            label for label in widget.findChildren(QLabel)
+            if "color:" in label.styleSheet() and label is not widget.summary_label
+        ]
+        assert styled
+        for label in styled:
+            assert "background: transparent" in label.styleSheet(), label.text()
 
 
 class TestProgressTab:

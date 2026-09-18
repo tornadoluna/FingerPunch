@@ -237,6 +237,79 @@ class TestSampleLength:
         assert window.start_time is None
 
 
+class TestVisualConsistency:
+    def test_no_toolbar_button_carries_a_platform_icon(self, window):
+        buttons = [
+            window.start_button,
+            window.reset_button,
+            window.new_text_button,
+            window.history_button,
+        ]
+
+        assert all(button.icon().isNull() for button in buttons)
+
+    def test_button_labels_are_not_clipped(self, qapp, window):
+        window.show()
+        qapp.processEvents()
+
+        for button in (window.start_button, window.reset_button,
+                       window.new_text_button, window.history_button):
+            needed = button.fontMetrics().boundingRect(button.text())
+            assert button.width() >= needed.width(), button.text()
+            assert button.height() >= needed.height(), button.text()
+
+    def test_only_the_primary_action_is_filled(self, window):
+        assert "background-color" in window.start_button.styleSheet()
+        for button in (window.reset_button, window.new_text_button, window.history_button):
+            assert "background-color: transparent" in button.styleSheet(), button.text()
+
+
+class TestWindowSizing:
+    def test_the_window_is_tall_enough_for_its_contents(self, window):
+        window.show()
+
+        assert window.layout().minimumSize().height() <= window.height()
+
+    def test_the_minimum_height_follows_the_layout(self, window):
+        window.show()
+
+        assert window.minimumHeight() >= window.layout().minimumSize().height()
+
+    def test_showing_the_camera_preview_grows_the_window(self, qapp, window):
+        window.show()
+        qapp.processEvents()
+        before = window.height()
+
+        window.camera_panel.preview.show()
+        qapp.processEvents()
+
+        assert window.height() > before
+        assert window.layout().minimumSize().height() <= window.height()
+        assert window.layout().minimumSize().height() <= window.height()
+
+    def test_hiding_the_preview_lowers_the_minimum_again(self, qapp, window):
+        window.show()
+        window.camera_panel.preview.show()
+        qapp.processEvents()
+        grown = window.minimumHeight()
+
+        window.camera_panel.preview.hide()
+        qapp.processEvents()
+
+        assert window.minimumHeight() < grown
+
+    def test_no_explicit_minimum_height_overrides_the_layout(self, qapp, window):
+        window.show()
+        qapp.processEvents()
+
+        assert window.minimumHeight() == window.layout().minimumSize().height()
+
+    def test_the_window_is_wide_enough(self, window):
+        window.show()
+
+        assert window.width() >= window.minimumWidth()
+
+
 class TestLiveStats:
     def test_stats_before_the_session_starts_are_ignored(self, window):
         received = []

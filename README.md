@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 400 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 558 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -55,7 +55,8 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 ### In Development
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
   - Finger Mapping: standard QWERTY touch-typing assignment, key to expected finger (done)
-  - Camera capture, hand landmarks, press attribution and live feedback (not yet started)
+  - Camera capture: opt-in live preview, read on a worker thread, with device selection (done)
+  - Hand landmarks, press attribution and live feedback (not yet started)
 
 ### Future Enhancements
 - Improve text generation with markov chains or GPT-3 for more natural sentences
@@ -67,7 +68,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Backend: Python 3.12+ - Core application logic
 - Testing: pytest + pytest-cov - Comprehensive test suite
 - Data Visualization: matplotlib - Performance charts and progress tracking
-- Computer Vision: OpenCV + MediaPipe (planned) - Camera feed capture and finger processing
+- Computer Vision: OpenCV - Camera feed capture; MediaPipe (planned) - finger processing
 - Data Storage: SQLite - Session persistence
 - Build System: Standard Python packaging
 ## Quick Start
@@ -175,6 +176,29 @@ to the path above to keep your history.
    - **🚀 Progress**: Personal Bests, improvement metrics, and Streaks
 3. Summary statistics show your overall progress and best performances
 
+### Choosing a Camera
+The camera is off by default. Enable it in the CAMERA panel, and if the wrong
+input is used, press **Detect** to list the cameras attached to the machine and
+pick one from the dropdown. On Linux each entry is named after the hardware, so
+a plugged-in webcam appears as something like "C505 HD Webcam (1280x720)"
+rather than an index. Elsewhere entries fall back to "Camera 0 (1280x720)". The choice is saved
+and reused next time, so plugging in a webcam only needs sorting out once.
+
+Detection runs only when you press the button, so no camera is opened without
+you asking for it, and a device is listed only if it actually delivers a frame
+rather than merely opening.
+
+Capture resolution is selectable between 640x480, 1280x720 and 1920x1080, and
+defaults to 720p. The camera is asked for MJPG rather than raw YUYV, because
+USB webcams are bandwidth limited in raw mode and commonly cap at 640x480
+there while offering far more in MJPG. Whatever the driver actually grants is
+logged, since asking is not the same as receiving.
+
+Some devices advertise MJPG but produce a stream libjpeg cannot decode cleanly.
+The camera checks the first few frames when it opens, and falls back to the
+driver's own format if they come back damaged, so a bad MJPG implementation
+costs a moment at startup rather than a broken picture and a flooded log.
+
 ### Finger Training (Future)
 - Camera Setup: Position camera to view keyboard and hands
 - Finger Mapping: App will guide optimal finger placement
@@ -190,12 +214,18 @@ FingerPunch/
 │   ├── paths.py                  # User data directory resolution
 │   ├── text_diff.py              # Changed-range calculation shared by stats and UI
 │   ├── finger_map.py             # QWERTY key to expected touch-typing finger
+│   ├── camera/                   # Camera capture, off the UI thread
+│   │   ├── source.py             # FrameSource protocol and the OpenCV camera
+│   │   ├── devices.py            # Device detection and the remembered choice
+│   │   ├── worker.py             # Frame grabbing thread and its lifecycle
+│   │   └── image.py              # Frame to QImage conversion
 │   ├── logging_config.py         # Log file setup and exception hook
 │   ├── data_manager.py           # SQLite session persistence and migrations
 │   └── ui/                       # Qt presentation layer
 │       ├── main_window.py        # Main practice window
 │       ├── results_dialog.py     # End-of-session results
 │       ├── history_dialog.py     # History, analytics, progress
+│       ├── camera_panel.py       # Camera toggle, preview and status
 │       ├── widgets.py            # Typing input and shared dialogs
 │       └── styles.py             # Shared dark-theme design system
 ├── tests/                        # Test suite
@@ -205,6 +235,10 @@ FingerPunch/
 │   ├── test_paths.py             # Data directory resolution
 │   ├── test_text_diff.py         # Changed-range calculation
 │   ├── test_finger_map.py        # Key to finger assignment
+│   ├── test_camera_source.py     # Camera opening, reading and release
+│   ├── test_camera_devices.py    # Device detection and persistence
+│   ├── test_camera_worker.py     # Grab loop and thread lifecycle
+│   ├── test_camera_panel.py      # Preview, toggle and failure reporting
 │   ├── test_stats_incremental.py # Incremental counting vs brute force
 │   ├── test_logging_config.py    # Logging setup and exception hook
 │   ├── test_error_handling.py    # Storage failure boundaries
@@ -229,7 +263,9 @@ FingerPunch/
 ### Test Coverage
 - fingerpunch/logging_config.py: 100%
 - fingerpunch/paths.py: 100%
+- fingerpunch/camera/worker.py: 100%
 - fingerpunch/finger_map.py: 100%
+- fingerpunch/ui/camera_panel.py: 100%
 - fingerpunch/text_diff.py: 100%
 - fingerpunch/ui/main_window.py: 100%
 - fingerpunch/ui/results_dialog.py: 100%
@@ -240,7 +276,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 400 automated tests
+- Overall: 99% across 558 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

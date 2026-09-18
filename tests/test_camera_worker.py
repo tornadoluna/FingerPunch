@@ -2,6 +2,7 @@ import time
 
 import pytest
 
+from fingerpunch.camera.landmarks import LandmarkSnapshot
 from fingerpunch.camera.source import CameraUnavailable, Frame
 from fingerpunch.camera.worker import (
     MAX_CONSECUTIVE_MISSES,
@@ -152,6 +153,127 @@ class TestGrabbing:
         assert failures == ["device disappeared"]
         assert worker.is_grabbing is False
         assert source.closed is True
+
+
+class FakeDetector:
+    def __init__(self, error=None):
+        self.error = error
+        self.closed = False
+        self.seen = []
+
+    def detect(self, frame):
+        if self.error is not None:
+            raise self.error
+        self.seen.append(frame)
+        return LandmarkSnapshot(frame.timestamp, ())
+
+    def close(self):
+        self.closed = True
+
+
+class TestHandTracking:
+    def test_no_detector_means_no_landmarks(self, qapp):
+        worker = CameraWorker(FakeSource(frames=[a_frame()]))
+        seen = []
+        worker.landmarks_ready.connect(seen.append)
+        worker.start()
+
+        worker.grab()
+
+        assert seen == []
+        worker.stop()
+
+    def test_a_detector_emits_landmarks_for_each_frame(self, qapp):
+        detector = FakeDetector()
+        worker = CameraWorker(FakeSource(frames=[a_frame()]), detector_factory=lambda: detector)
+        seen = []
+        worker.landmarks_ready.connect(seen.append)
+        worker.start()
+
+        worker.grab()
+
+        assert len(seen) == 1
+        assert len(detector.seen) == 1
+        worker.stop()
+
+    def test_the_detector_is_built_on_the_worker_not_the_caller(self, qapp):
+        built = []
+        worker = CameraWorker(FakeSource(), detector_factory=lambda: built.append(1) or FakeDetector())
+
+        assert built == []
+        worker.start()
+
+        assert built == [1]
+        worker.stop()
+
+    def test_a_detector_that_will_not_start_reports_and_closes_the_source(self, qapp):
+        source = FakeSource()
+
+        def refuse():
+            raise RuntimeError("model missing")
+
+        worker = CameraWorker(source, detector_factory=refuse)
+        failures = []
+        worker.failed.connect(failures.append)
+
+        worker.start()
+
+        assert failures == ["model missing"]
+        assert worker.is_grabbing is False
+        assert source.closed is True
+
+    def test_a_detector_that_raises_on_a_frame_does_not_stop_the_camera(self, qapp):
+        detector = FakeDetector(error=RuntimeError("inference blew up"))
+        worker = CameraWorker(
+            FakeSource(frames=[a_frame(), a_frame()]), detector_factory=lambda: detector
+        )
+        frames = []
+        worker.frame_ready.connect(frames.append)
+        worker.start()
+
+        worker.grab()
+
+        assert len(frames) == 1
+        assert worker.is_grabbing is True
+        worker.stop()
+
+    def test_stopping_closes_the_detector(self, qapp):
+        detector = FakeDetector()
+        worker = CameraWorker(FakeSource(), detector_factory=lambda: detector)
+        worker.start()
+
+        worker.stop()
+
+        assert detector.closed is True
+
+    def test_the_detector_is_rebuilt_on_the_next_start(self, qapp):
+        built = []
+        worker = CameraWorker(FakeSource(), detector_factory=lambda: built.append(1) or FakeDetector())
+        worker.start()
+        worker.stop()
+
+        worker.start()
+
+        assert built == [1, 1]
+        worker.stop()
+
+    def test_the_controller_forwards_landmarks(self, qapp):
+        detector = FakeDetector()
+        controller = CameraController(
+            source_factory=lambda: FakeSource(frames=[a_frame() for _ in range(5)]),
+            interval_ms=1,
+            detector_factory=lambda: detector,
+        )
+        seen = []
+        controller.landmarks_ready.connect(seen.append)
+
+        controller.start()
+        deadline = time.monotonic() + 5
+        while not seen and time.monotonic() < deadline:
+            qapp.processEvents()
+        controller.stop()
+
+        assert seen
 
 
 class TestWorkerShutdown:

@@ -4,3 +4,4 @@ PySide6_Essentials==6.10.2
 shiboken6==6.10.2
 matplotlib==3.11.2
 opencv-python==5.0.0.93
+mediapipe==1.0.1

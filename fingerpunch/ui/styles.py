@@ -56,6 +56,28 @@ def label_style(
     return "QLabel { " + " ".join(rules) + " }"
 
 
+def checkbox_style(color: str = TEXT_SECONDARY) -> str:
+    return f"""
+        QCheckBox {{
+            color: {color};
+            background: transparent;
+            spacing: 8px;
+        }}
+        QCheckBox::indicator {{
+            width: 15px;
+            height: 15px;
+            border: 1px solid {BORDER_STRONG};
+            border-radius: 4px;
+            background-color: {BG_WINDOW};
+        }}
+        QCheckBox::indicator:hover {{ border-color: {ACCENT}; }}
+        QCheckBox::indicator:checked {{
+            background-color: {ACCENT};
+            border-color: {ACCENT};
+        }}
+    """
+
+
 def panel_style(border_color: str = BORDER, title_color: str = TEXT_SECONDARY) -> str:
     """A subtly-bordered content panel, replacing thick colored-border group boxes."""
     return f"""

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +27,9 @@ from fingerpunch.camera.devices import (
     saved_resolution,
 )
 from fingerpunch.camera.image import frame_to_image
+from fingerpunch.camera.landmarks import LandmarkSnapshot
+from fingerpunch.camera.model import ModelUnavailable, ensure_model
+from fingerpunch.camera.overlay import draw_hands
 from fingerpunch.camera.source import Frame, OpenCVCamera
 from fingerpunch.camera.worker import CameraController
 from fingerpunch.ui import styles
@@ -33,10 +37,19 @@ from fingerpunch.ui import styles
 logger = logging.getLogger(__name__)
 
 
+def _default_detector_factory() -> object:
+    from fingerpunch.camera.detector import MediaPipeDetector
+
+    return MediaPipeDetector(ensure_model())
+
+
 def _default_controller_factory(
-    device_index: int, resolution: tuple[int, int]
+    device_index: int, resolution: tuple[int, int], track_hands: bool = False
 ) -> CameraController:
-    return CameraController(source_factory=lambda: OpenCVCamera(device_index, resolution))
+    return CameraController(
+        source_factory=lambda: OpenCVCamera(device_index, resolution),
+        detector_factory=_default_detector_factory if track_hands else None,
+    )
 
 PREVIEW_WIDTH = 288
 PREVIEW_HEIGHT = 162
@@ -44,6 +57,7 @@ OFF_MESSAGE = "Camera off"
 STARTING_MESSAGE = "Starting the camera..."
 LIVE_MESSAGE = "Camera live"
 NO_DEVICES_MESSAGE = "No cameras detected"
+PREPARING_TRACKING_MESSAGE = "Preparing hand tracking..."
 
 
 class CameraPanel(QGroupBox):
@@ -64,11 +78,16 @@ class CameraPanel(QGroupBox):
         self._controller_factory = controller_factory
         self.device_index = saved_device_index(settings)
         self.resolution = saved_resolution(settings)
+        self.track_hands = False
+        self._landmarks: LandmarkSnapshot | None = None
         self.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
         self.setStyleSheet(styles.panel_style())
 
-        self._controller = self._controller_factory(self.device_index, self.resolution)
+        self._controller = self._controller_factory(
+            self.device_index, self.resolution, self.track_hands
+        )
         self._controller.frame_ready.connect(self._on_frame)
+        self._controller.landmarks_ready.connect(self._on_landmarks)
         self._controller.failed.connect(self._on_failed)
 
         self.preview = QLabel()
@@ -143,6 +162,13 @@ class CameraPanel(QGroupBox):
             self.resolution_combo.setCurrentIndex(RESOLUTION_CHOICES.index(self.resolution))
         self.resolution_combo.currentIndexChanged.connect(self._on_resolution_changed)
         resolution_row.addWidget(self.resolution_combo)
+        self.track_checkbox = QCheckBox("Track hands")
+        self.track_checkbox.setFont(styles.ui_font(12))
+        self.track_checkbox.setStyleSheet(styles.checkbox_style())
+        self.track_checkbox.toggled.connect(self._on_track_toggled)
+        resolution_row.addSpacing(18)
+        resolution_row.addWidget(self.track_checkbox)
+
         resolution_row.addStretch()
         column.addLayout(resolution_row)
 
@@ -184,6 +210,29 @@ class CameraPanel(QGroupBox):
 
         self._set_status(f"Found {len(found)} camera(s)", styles.TEXT_SECONDARY)
 
+    def _on_track_toggled(self, enabled: bool) -> None:
+        if enabled == self.track_hands:
+            return
+
+        if enabled:
+            self._set_status(PREPARING_TRACKING_MESSAGE, styles.TEXT_SECONDARY)
+            try:
+                ensure_model()
+            except ModelUnavailable as error:
+                logger.warning("Hand tracking unavailable: %s", error)
+                self.track_checkbox.blockSignals(True)
+                self.track_checkbox.setChecked(False)
+                self.track_checkbox.blockSignals(False)
+                self._set_status(str(error), styles.DANGER)
+                return
+
+        self.track_hands = enabled
+        self._landmarks = None
+        self._rebuild_controller()
+
+    def _on_landmarks(self, snapshot: LandmarkSnapshot) -> None:
+        self._landmarks = snapshot
+
     def _on_resolution_changed(self, position: int) -> None:
         resolution = self.resolution_combo.itemData(position)
         if resolution is None or tuple(resolution) == self.resolution:
@@ -214,8 +263,11 @@ class CameraPanel(QGroupBox):
         if was_enabled:
             self.toggle.setChecked(False)
 
-        self._controller = self._controller_factory(self.device_index, self.resolution)
+        self._controller = self._controller_factory(
+            self.device_index, self.resolution, self.track_hands
+        )
         self._controller.frame_ready.connect(self._on_frame)
+        self._controller.landmarks_ready.connect(self._on_landmarks)
         self._controller.failed.connect(self._on_failed)
 
         if was_enabled:
@@ -241,7 +293,10 @@ class CameraPanel(QGroupBox):
         if self.status.text() != LIVE_MESSAGE:
             self._set_status(LIVE_MESSAGE, styles.SUCCESS)
 
-        pixmap = QPixmap.fromImage(frame_to_image(frame))
+        image = frame_to_image(frame)
+        if self.track_hands and self._landmarks is not None:
+            image = draw_hands(image, self._landmarks)
+        pixmap = QPixmap.fromImage(image)
         self.preview.setPixmap(
             pixmap.scaled(
                 self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation

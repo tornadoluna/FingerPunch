@@ -6,6 +6,8 @@ from PySide6.QtCore import QObject, Signal
 
 from fingerpunch.camera.devices import CameraDevice
 from fingerpunch.camera.image import frame_to_image
+from fingerpunch.camera.landmarks import LandmarkSnapshot
+from fingerpunch.camera.model import ModelUnavailable
 from fingerpunch.camera.source import Frame
 from fingerpunch.ui import camera_panel
 from fingerpunch.ui.camera_panel import (
@@ -19,6 +21,7 @@ from fingerpunch.ui.camera_panel import (
 
 class FakeController(QObject):
     frame_ready = Signal(object)
+    landmarks_ready = Signal(object)
     failed = Signal(str)
 
     def __init__(self):
@@ -54,10 +57,11 @@ class FakeSettings:
 def panel(qapp):
     controllers = []
 
-    def factory(device_index, resolution):
+    def factory(device_index, resolution, track_hands=False):
         controller = FakeController()
         controller.device_index = device_index
         controller.resolution = resolution
+        controller.track_hands = track_hands
         controllers.append(controller)
         return controller
 
@@ -75,7 +79,7 @@ class TestStartupNaming:
 
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: FakeController(),
+            controller_factory=lambda i, r, t=False: FakeController(),
             probe=list,
         )
 
@@ -88,7 +92,7 @@ class TestStartupNaming:
 
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: FakeController(),
+            controller_factory=lambda i, r, t=False: FakeController(),
             probe=list,
         )
 
@@ -100,7 +104,7 @@ class TestStartupNaming:
         monkeypatch.setattr(camera_panel, "device_name", lambda index: opened.append(index) or "Cam")
 
         widget = CameraPanel(
-            controller_factory=lambda i, r: FakeController(), probe=list
+            controller_factory=lambda i, r, t=False: FakeController(), probe=list
         )
 
         assert opened == [0]
@@ -114,7 +118,7 @@ class TestDeviceSelection:
 
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: seen.append(i) or FakeController(),
+            controller_factory=lambda i, r, t=False: seen.append(i) or FakeController(),
             probe=list,
         )
 
@@ -132,7 +136,7 @@ class TestDeviceSelection:
         assert labels == ["Camera 0", "Camera 1", "Camera 2"]
 
     def test_detecting_nothing_reports_it(self, qapp):
-        widget = CameraPanel(controller_factory=lambda i, r: FakeController(), probe=list)
+        widget = CameraPanel(controller_factory=lambda i, r, t=False: FakeController(), probe=list)
 
         widget.detect_devices()
 
@@ -151,7 +155,7 @@ class TestDeviceSelection:
         settings = FakeSettings()
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: FakeController(),
+            controller_factory=lambda i, r, t=False: FakeController(),
             probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1)],
         )
         widget.detect_devices()
@@ -192,7 +196,7 @@ class TestDeviceSelection:
         settings = FakeSettings({"camera_device_index": 7})
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: FakeController(),
+            controller_factory=lambda i, r, t=False: FakeController(),
             probe=lambda: [CameraDevice(i, 640, 480) for i in (0, 1)],
         )
 
@@ -215,7 +219,7 @@ class TestResolution:
 
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: seen.append(r) or FakeController(),
+            controller_factory=lambda i, r, t=False: seen.append(r) or FakeController(),
             probe=list,
         )
 
@@ -233,7 +237,7 @@ class TestResolution:
         settings = FakeSettings()
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: FakeController(),
+            controller_factory=lambda i, r, t=False: FakeController(),
             probe=list,
         )
 
@@ -256,7 +260,7 @@ class TestResolution:
 
         widget = CameraPanel(
             settings=settings,
-            controller_factory=lambda i, r: FakeController(),
+            controller_factory=lambda i, r, t=False: FakeController(),
             probe=list,
         )
 
@@ -270,7 +274,7 @@ class TestControllerSubstitution:
         monkeypatch.setattr(
             camera_panel,
             "_default_controller_factory",
-            lambda index, resolution: created.append(index) or FakeController(),
+            lambda index, resolution, track=False: created.append(index) or FakeController(),
         )
 
         widget = CameraPanel()
@@ -407,6 +411,87 @@ class TestFailure:
 
         assert panel._fake.started == 2
         assert panel.status.text() == STARTING_MESSAGE
+
+
+class TestHandTracking:
+    def test_tracking_is_off_by_default(self, panel):
+        assert panel.track_hands is False
+        assert panel.track_checkbox.isChecked() is False
+        assert panel._controllers[0].track_hands is False
+
+    def test_enabling_tracking_rebuilds_the_controller_with_it_on(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/model.task")
+
+        panel.track_checkbox.setChecked(True)
+
+        assert panel.track_hands is True
+        assert panel._controllers[-1].track_hands is True
+
+    def test_enabling_tracking_fetches_the_model(self, panel, monkeypatch):
+        calls = []
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: calls.append(1) or "/tmp/m")
+
+        panel.track_checkbox.setChecked(True)
+
+        assert calls == [1]
+
+    def test_a_model_that_cannot_be_fetched_turns_tracking_back_off(self, panel, monkeypatch):
+        def refuse():
+            raise ModelUnavailable("no network")
+
+        monkeypatch.setattr(camera_panel, "ensure_model", refuse)
+
+        panel.track_checkbox.setChecked(True)
+
+        assert panel.track_hands is False
+        assert panel.track_checkbox.isChecked() is False
+        assert panel.status.text() == "no network"
+
+    def test_disabling_tracking_rebuilds_without_it(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        panel.track_checkbox.setChecked(True)
+
+        panel.track_checkbox.setChecked(False)
+
+        assert panel.track_hands is False
+        assert panel._controllers[-1].track_hands is False
+
+    def test_landmarks_are_kept_for_the_next_frame(self, panel):
+        snapshot = LandmarkSnapshot(1.0, ())
+
+        panel._fake.landmarks_ready.emit(snapshot)
+
+        assert panel._landmarks is snapshot
+
+    def test_landmarks_are_discarded_when_tracking_is_switched(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        panel._landmarks = LandmarkSnapshot(1.0, ())
+
+        panel.track_checkbox.setChecked(True)
+
+        assert panel._landmarks is None
+
+    def test_the_overlay_is_only_drawn_when_tracking(self, panel, monkeypatch):
+        drawn = []
+        monkeypatch.setattr(camera_panel, "draw_hands", lambda img, snap: drawn.append(1) or img)
+        panel.toggle.setChecked(True)
+        panel._landmarks = LandmarkSnapshot(1.0, ())
+
+        panel._fake.frame_ready.emit(a_frame())
+
+        assert drawn == []
+
+    def test_the_overlay_is_drawn_once_tracking_is_on(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        drawn = []
+        monkeypatch.setattr(camera_panel, "draw_hands", lambda img, snap: drawn.append(1) or img)
+        panel.track_checkbox.setChecked(True)
+        panel.toggle.setChecked(True)
+        panel._landmarks = LandmarkSnapshot(1.0, ())
+
+        panel._controllers[-1].frame_ready.emit(a_frame())
+
+        assert drawn == [1]
 
 
 class TestShutdown:

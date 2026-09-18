@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 561 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 637 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -56,7 +56,8 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Camera Integration: OpenCV camera feed capture with MediaPipe finger processing
   - Finger Mapping: standard QWERTY touch-typing assignment, key to expected finger (done)
   - Camera capture: opt-in live preview, read on a worker thread, with device selection (done)
-  - Hand landmarks, press attribution and live feedback (not yet started)
+  - Hand landmarks: MediaPipe hand tracking with a live skeleton overlay (done)
+  - Press attribution and live finger feedback (not yet started)
 
 ### Future Enhancements
 - Improve text generation with markov chains or GPT-3 for more natural sentences
@@ -184,6 +185,11 @@ a plugged-in webcam appears as "C505 HD Webcam" rather than an index, and the
 saved camera keeps its name across restarts without needing to detect again. Elsewhere entries fall back to "Camera 0 (1280x720)". The choice is saved
 and reused next time, so plugging in a webcam only needs sorting out once.
 
+Tick **Track hands** to draw a live skeleton over the preview. The first time,
+a 7.8 MB hand landmark model is downloaded from Google's model store and cached
+beside the database; after that it is used offline. Tracking runs on the camera
+thread, not the interface thread.
+
 Detection runs only when you press the button, so no camera is opened without
 you asking for it, and a device is listed only if it actually delivers a frame
 rather than merely opening.
@@ -217,6 +223,10 @@ FingerPunch/
 │   ├── camera/                   # Camera capture, off the UI thread
 │   │   ├── source.py             # FrameSource protocol and the OpenCV camera
 │   │   ├── devices.py            # Device detection and the remembered choice
+│   │   ├── model.py              # Hand landmark model download and caching
+│   │   ├── landmarks.py          # Landmark types and result conversion
+│   │   ├── detector.py           # MediaPipe adapter behind a Protocol
+│   │   ├── overlay.py            # Hand skeleton drawing
 │   │   ├── worker.py             # Frame grabbing thread and its lifecycle
 │   │   └── image.py              # Frame to QImage conversion
 │   ├── logging_config.py         # Log file setup and exception hook
@@ -239,6 +249,10 @@ FingerPunch/
 │   ├── test_camera_devices.py    # Device detection and persistence
 │   ├── test_camera_worker.py     # Grab loop and thread lifecycle
 │   ├── test_camera_panel.py      # Preview, toggle and failure reporting
+│   ├── test_camera_model.py      # Model download, checksum and failures
+│   ├── test_landmarks.py         # Landmark conversion and fingertips
+│   ├── test_detector.py          # MediaPipe adapter behaviour
+│   ├── test_overlay.py           # Skeleton topology and drawing
 │   ├── test_stats_incremental.py # Incremental counting vs brute force
 │   ├── test_logging_config.py    # Logging setup and exception hook
 │   ├── test_error_handling.py    # Storage failure boundaries
@@ -276,7 +290,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 561 automated tests
+- Overall: 99% across 637 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from fingerpunch.camera.devices import (
     RESOLUTION_CHOICES,
     SettingsStore,
+    device_name,
     probe_devices,
     remember_device_index,
     remember_resolution,
@@ -118,7 +119,7 @@ class CameraPanel(QGroupBox):
         self.device_combo = QComboBox()
         self.device_combo.setFont(styles.ui_font(12))
         self.device_combo.setStyleSheet(styles.combo_box_style(min_width=180))
-        self.device_combo.addItem(f"Camera {self.device_index}", self.device_index)
+        self.device_combo.addItem(self._device_title(self.device_index), self.device_index)
         self.device_combo.currentIndexChanged.connect(self._on_device_changed)
         device_row.addWidget(self.device_combo, stretch=1)
 
@@ -146,6 +147,10 @@ class CameraPanel(QGroupBox):
         column.addLayout(resolution_row)
 
         return column
+
+    @staticmethod
+    def _device_title(index: int) -> str:
+        return device_name(index) or f"Camera {index}"
 
     @staticmethod
     def _field_label(text: str, width: int = 0) -> QLabel:
@@ -197,6 +202,11 @@ class CameraPanel(QGroupBox):
     def _select_device(self, index: int) -> None:
         self.device_index = index
         remember_device_index(self._settings, index)
+        if self.device_combo.findData(index) == -1:
+            self.device_combo.blockSignals(True)
+            self.device_combo.addItem(self._device_title(index), index)
+            self.device_combo.setCurrentIndex(self.device_combo.count() - 1)
+            self.device_combo.blockSignals(False)
         self._rebuild_controller()
 
     def _rebuild_controller(self) -> None:

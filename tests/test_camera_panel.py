@@ -68,6 +68,45 @@ def panel(qapp):
     widget.deleteLater()
 
 
+class TestStartupNaming:
+    def test_the_saved_device_is_named_without_opening_it(self, qapp, monkeypatch):
+        monkeypatch.setattr(camera_panel, "device_name", lambda index: "C505 HD Webcam")
+        settings = FakeSettings({"camera_device_index": 2})
+
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i, r: FakeController(),
+            probe=list,
+        )
+
+        assert widget.device_combo.currentText() == "C505 HD Webcam"
+        widget.deleteLater()
+
+    def test_an_unnamed_device_falls_back_to_its_index(self, qapp, monkeypatch):
+        monkeypatch.setattr(camera_panel, "device_name", lambda index: None)
+        settings = FakeSettings({"camera_device_index": 3})
+
+        widget = CameraPanel(
+            settings=settings,
+            controller_factory=lambda i, r: FakeController(),
+            probe=list,
+        )
+
+        assert widget.device_combo.currentText() == "Camera 3"
+        widget.deleteLater()
+
+    def test_naming_at_startup_opens_no_device(self, qapp, monkeypatch):
+        opened = []
+        monkeypatch.setattr(camera_panel, "device_name", lambda index: opened.append(index) or "Cam")
+
+        widget = CameraPanel(
+            controller_factory=lambda i, r: FakeController(), probe=list
+        )
+
+        assert opened == [0]
+        widget.deleteLater()
+
+
 class TestDeviceSelection:
     def test_it_starts_on_the_saved_device(self, qapp):
         settings = FakeSettings({"camera_device_index": 2})

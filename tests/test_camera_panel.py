@@ -494,6 +494,105 @@ class TestHandTracking:
         assert drawn == [1]
 
 
+class TestPositioningCheck:
+    def _ready(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        panel.track_checkbox.setChecked(True)
+        panel.toggle.setChecked(True)
+        return panel._controllers[-1]
+
+    def test_it_refuses_without_tracking(self, panel):
+        panel.toggle.setChecked(True)
+
+        panel.check_positioning()
+
+        assert panel._collecting is None
+        assert panel.status.text() == camera_panel.CHECK_NEEDS_TRACKING
+
+    def test_it_refuses_without_the_camera(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        panel.track_checkbox.setChecked(True)
+
+        panel.check_positioning()
+
+        assert panel._collecting is None
+
+    def test_starting_a_check_collects_landmarks(self, panel, monkeypatch):
+        controller = self._ready(panel, monkeypatch)
+
+        panel.check_positioning()
+        controller.landmarks_ready.emit(LandmarkSnapshot(1.0, ()))
+        controller.landmarks_ready.emit(LandmarkSnapshot(2.0, ()))
+
+        assert len(panel._collecting) == 2
+
+    def test_the_button_is_disabled_while_checking(self, panel, monkeypatch):
+        self._ready(panel, monkeypatch)
+
+        panel.check_positioning()
+
+        assert panel.check_button.isEnabled() is False
+
+    def test_live_frames_do_not_overwrite_the_checking_message(self, panel, monkeypatch):
+        controller = self._ready(panel, monkeypatch)
+        panel.check_positioning()
+
+        controller.frame_ready.emit(a_frame())
+
+        assert panel.status.text() == camera_panel.CHECKING_MESSAGE
+
+    def test_the_report_survives_further_frames(self, panel, monkeypatch):
+        controller = self._ready(panel, monkeypatch)
+        panel.check_positioning()
+        panel._finish_check()
+        reported = panel.status.text()
+
+        controller.frame_ready.emit(a_frame())
+
+        assert panel.status.text() == reported
+
+    def test_finishing_reports_and_re_enables_the_button(self, panel, monkeypatch):
+        self._ready(panel, monkeypatch)
+        panel.check_positioning()
+
+        panel._finish_check()
+
+        assert panel._collecting is None
+        assert panel.check_button.isEnabled() is True
+        assert panel.status.text() == camera_panel.NO_FRAMES_REPORT
+
+    def test_the_report_is_emitted(self, panel, monkeypatch):
+        self._ready(panel, monkeypatch)
+        reports = []
+        panel.positioning_checked.connect(reports.append)
+        panel.check_positioning()
+
+        panel._finish_check()
+
+        assert len(reports) == 1
+        assert reports[0].ok is False
+
+    def test_changing_a_setting_releases_the_held_status(self, panel, monkeypatch):
+        controller = self._ready(panel, monkeypatch)
+        panel.check_positioning()
+        panel._finish_check()
+
+        panel.toggle.setChecked(False)
+        panel.toggle.setChecked(True)
+        panel._controllers[-1].frame_ready.emit(a_frame())
+
+        assert panel.status.text() == LIVE_MESSAGE
+        assert controller is not None
+
+    def test_shutdown_abandons_a_running_check(self, panel, monkeypatch):
+        self._ready(panel, monkeypatch)
+        panel.check_positioning()
+
+        panel.shutdown()
+
+        assert panel._collecting is None
+
+
 class TestShutdown:
     def test_shutdown_stops_the_controller(self, panel):
         panel.toggle.setChecked(True)

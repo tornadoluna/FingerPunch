@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 637 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 666 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -190,6 +190,13 @@ a 7.8 MB hand landmark model is downloaded from Google's model store and cached
 beside the database; after that it is used offline. Tracking runs on the camera
 thread, not the interface thread.
 
+**Check Positioning** samples a few seconds of tracking and says what is wrong
+in words: which hand is missing, which edge your fingers are leaving, whether
+detection is unsteady or the light is poor. It checks that the camera can see
+your hands, not that it can see the keyboard - the app never needs to see the
+keys, because the correct finger for each key is a fixed table and the keystroke
+timing comes from the interface.
+
 Detection runs only when you press the button, so no camera is opened without
 you asking for it, and a device is listed only if it actually delivers a frame
 rather than merely opening.
@@ -227,6 +234,7 @@ FingerPunch/
 │   │   ├── landmarks.py          # Landmark types and result conversion
 │   │   ├── detector.py           # MediaPipe adapter behind a Protocol
 │   │   ├── overlay.py            # Hand skeleton drawing
+│   │   ├── positioning.py        # Camera positioning assessment
 │   │   ├── worker.py             # Frame grabbing thread and its lifecycle
 │   │   └── image.py              # Frame to QImage conversion
 │   ├── logging_config.py         # Log file setup and exception hook
@@ -253,6 +261,7 @@ FingerPunch/
 │   ├── test_landmarks.py         # Landmark conversion and fingertips
 │   ├── test_detector.py          # MediaPipe adapter behaviour
 │   ├── test_overlay.py           # Skeleton topology and drawing
+│   ├── test_positioning.py       # Positioning assessment
 │   ├── test_stats_incremental.py # Incremental counting vs brute force
 │   ├── test_logging_config.py    # Logging setup and exception hook
 │   ├── test_error_handling.py    # Storage failure boundaries
@@ -290,7 +299,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 637 automated tests
+- Overall: 99% across 666 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

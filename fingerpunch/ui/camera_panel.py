@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -30,6 +30,7 @@ from fingerpunch.camera.image import frame_to_image
 from fingerpunch.camera.landmarks import LandmarkSnapshot
 from fingerpunch.camera.model import ModelUnavailable, ensure_model
 from fingerpunch.camera.overlay import draw_hands
+from fingerpunch.camera.positioning import NO_FRAMES, SAMPLE_SECONDS, evaluate
 from fingerpunch.camera.source import Frame, OpenCVCamera
 from fingerpunch.camera.worker import CameraController
 from fingerpunch.ui import styles
@@ -58,10 +59,14 @@ STARTING_MESSAGE = "Starting the camera..."
 LIVE_MESSAGE = "Camera live"
 NO_DEVICES_MESSAGE = "No cameras detected"
 PREPARING_TRACKING_MESSAGE = "Preparing hand tracking..."
+CHECKING_MESSAGE = "Checking positioning, hold your hands over the keyboard..."
+CHECK_NEEDS_TRACKING = "Turn on Track hands first."
+NO_FRAMES_REPORT = NO_FRAMES
 
 
 class CameraPanel(QGroupBox):
     frame_ready = Signal(object)
+    positioning_checked = Signal(object)
 
     def __init__(
         self,
@@ -80,6 +85,11 @@ class CameraPanel(QGroupBox):
         self.resolution = saved_resolution(settings)
         self.track_hands = False
         self._landmarks: LandmarkSnapshot | None = None
+        self._collecting: list[LandmarkSnapshot] | None = None
+        self._status_held = False
+        self._check_timer = QTimer(self)
+        self._check_timer.setSingleShot(True)
+        self._check_timer.timeout.connect(self._finish_check)
         self.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
         self.setStyleSheet(styles.panel_style())
 
@@ -162,6 +172,11 @@ class CameraPanel(QGroupBox):
             self.resolution_combo.setCurrentIndex(RESOLUTION_CHOICES.index(self.resolution))
         self.resolution_combo.currentIndexChanged.connect(self._on_resolution_changed)
         resolution_row.addWidget(self.resolution_combo)
+        self.check_button = QPushButton("Check Positioning")
+        self.check_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
+        self.check_button.setStyleSheet(styles.secondary_button_style(min_width=150))
+        self.check_button.clicked.connect(self.check_positioning)
+
         self.track_checkbox = QCheckBox("Track hands")
         self.track_checkbox.setFont(styles.ui_font(12))
         self.track_checkbox.setStyleSheet(styles.checkbox_style())
@@ -171,6 +186,13 @@ class CameraPanel(QGroupBox):
 
         resolution_row.addStretch()
         column.addLayout(resolution_row)
+
+        check_row = QHBoxLayout()
+        check_row.setSpacing(8)
+        check_row.addWidget(self._field_label("", width=72))
+        check_row.addWidget(self.check_button)
+        check_row.addStretch()
+        column.addLayout(check_row)
 
         return column
 
@@ -211,6 +233,7 @@ class CameraPanel(QGroupBox):
         self._set_status(f"Found {len(found)} camera(s)", styles.TEXT_SECONDARY)
 
     def _on_track_toggled(self, enabled: bool) -> None:
+        self._release_status()
         if enabled == self.track_hands:
             return
 
@@ -232,8 +255,34 @@ class CameraPanel(QGroupBox):
 
     def _on_landmarks(self, snapshot: LandmarkSnapshot) -> None:
         self._landmarks = snapshot
+        if self._collecting is not None:
+            self._collecting.append(snapshot)
+
+    def check_positioning(self) -> None:
+        if not (self.track_hands and self.toggle.isChecked()):
+            self._set_status(CHECK_NEEDS_TRACKING, styles.WARNING)
+            return
+
+        self._collecting = []
+        self._status_held = True
+        self.check_button.setEnabled(False)
+        self._set_status(CHECKING_MESSAGE, styles.TEXT_SECONDARY)
+        self._check_timer.start(int(SAMPLE_SECONDS * 1000))
+
+    def _finish_check(self) -> None:
+        collected = self._collecting or []
+        self._collecting = None
+        self.check_button.setEnabled(True)
+
+        report = evaluate(collected)
+        self.positioning_checked.emit(report)
+        self._set_status(
+            " ".join(report.messages),
+            styles.SUCCESS if report.ok else styles.WARNING,
+        )
 
     def _on_resolution_changed(self, position: int) -> None:
+        self._release_status()
         resolution = self.resolution_combo.itemData(position)
         if resolution is None or tuple(resolution) == self.resolution:
             return
@@ -249,6 +298,7 @@ class CameraPanel(QGroupBox):
         self._select_device(index)
 
     def _select_device(self, index: int) -> None:
+        self._release_status()
         self.device_index = index
         remember_device_index(self._settings, index)
         if self.device_combo.findData(index) == -1:
@@ -274,6 +324,7 @@ class CameraPanel(QGroupBox):
             self.toggle.setChecked(True)
 
     def _on_toggled(self, enabled: bool) -> None:
+        self._release_status()
         if enabled:
             self.toggle.setText("Disable Camera")
             self._set_status(STARTING_MESSAGE, styles.TEXT_SECONDARY)
@@ -290,7 +341,7 @@ class CameraPanel(QGroupBox):
         if not self.toggle.isChecked():
             return
 
-        if self.status.text() != LIVE_MESSAGE:
+        if not self._status_held and self.status.text() != LIVE_MESSAGE:
             self._set_status(LIVE_MESSAGE, styles.SUCCESS)
 
         image = frame_to_image(frame)
@@ -315,9 +366,15 @@ class CameraPanel(QGroupBox):
         self.preview.hide()
         self._set_status(message, styles.DANGER)
 
+    def _release_status(self) -> None:
+        self._status_held = False
+
     def _set_status(self, message: str, color: str) -> None:
         self.status.setText(message)
         self.status.setStyleSheet(styles.label_style(color))
 
     def shutdown(self) -> None:
+        self._check_timer.stop()
+        self._collecting = None
+        self._status_held = False
         self._controller.stop()

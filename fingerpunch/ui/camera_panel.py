@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -28,7 +28,7 @@ from fingerpunch.camera.devices import (
 )
 from fingerpunch.camera.image import frame_to_image
 from fingerpunch.camera.landmarks import LandmarkSnapshot
-from fingerpunch.camera.model import ModelUnavailable, ensure_model
+from fingerpunch.camera.model import ModelDownload, ensure_model, is_downloaded
 from fingerpunch.camera.overlay import draw_hands
 from fingerpunch.camera.positioning import NO_FRAMES, SAMPLE_SECONDS, evaluate
 from fingerpunch.camera.source import Frame, OpenCVCamera
@@ -61,6 +61,8 @@ NO_DEVICES_MESSAGE = "No cameras detected"
 PREPARING_TRACKING_MESSAGE = "Preparing hand tracking..."
 CHECKING_MESSAGE = "Checking positioning, hold your hands over the keyboard..."
 CHECK_NEEDS_TRACKING = "Turn on Track hands first."
+TRACKING_READY_MESSAGE = "Hand tracking ready. Enable the camera to start."
+DOWNLOADING_MESSAGE = "Downloading the hand tracking model ({percent}%)..."
 NO_FRAMES_REPORT = NO_FRAMES
 
 
@@ -87,6 +89,8 @@ class CameraPanel(QGroupBox):
         self._landmarks: LandmarkSnapshot | None = None
         self._collecting: list[LandmarkSnapshot] | None = None
         self._status_held = False
+        self._download_thread: QThread | None = None
+        self._download: ModelDownload | None = None
         self._check_timer = QTimer(self)
         self._check_timer.setSingleShot(True)
         self._check_timer.timeout.connect(self._finish_check)
@@ -237,21 +241,56 @@ class CameraPanel(QGroupBox):
         if enabled == self.track_hands:
             return
 
-        if enabled:
+        if enabled and not is_downloaded():
             self._set_status(PREPARING_TRACKING_MESSAGE, styles.TEXT_SECONDARY)
-            try:
-                ensure_model()
-            except ModelUnavailable as error:
-                logger.warning("Hand tracking unavailable: %s", error)
-                self.track_checkbox.blockSignals(True)
-                self.track_checkbox.setChecked(False)
-                self.track_checkbox.blockSignals(False)
-                self._set_status(str(error), styles.DANGER)
-                return
+            self._start_model_download()
+            return
 
+        self._apply_tracking(enabled)
+
+    def _apply_tracking(self, enabled: bool) -> None:
         self.track_hands = enabled
         self._landmarks = None
         self._rebuild_controller()
+
+        if not self.toggle.isChecked():
+            self._set_status(
+                TRACKING_READY_MESSAGE if enabled else OFF_MESSAGE, styles.TEXT_MUTED
+            )
+
+    def _start_model_download(self) -> None:
+        self.track_checkbox.setEnabled(False)
+        self._download_thread = QThread()
+        self._download = ModelDownload()
+        self._download.moveToThread(self._download_thread)
+        self._download_thread.started.connect(self._download.run)
+        self._download.progress.connect(self._on_download_progress)
+        self._download.finished.connect(self._on_download_finished)
+        self._download.failed.connect(self._on_download_failed)
+        self._download_thread.start()
+
+    def _on_download_progress(self, percent: int) -> None:
+        self._set_status(DOWNLOADING_MESSAGE.format(percent=percent), styles.TEXT_SECONDARY)
+
+    def _stop_download(self) -> None:
+        if self._download_thread is not None:
+            self._download_thread.quit()
+            self._download_thread.wait()
+            self._download_thread = None
+            self._download = None
+        self.track_checkbox.setEnabled(True)
+
+    def _on_download_finished(self) -> None:
+        self._stop_download()
+        self._apply_tracking(True)
+
+    def _on_download_failed(self, message: str) -> None:
+        logger.warning("Hand tracking unavailable: %s", message)
+        self._stop_download()
+        self.track_checkbox.blockSignals(True)
+        self.track_checkbox.setChecked(False)
+        self.track_checkbox.blockSignals(False)
+        self._set_status(message, styles.DANGER)
 
     def _on_landmarks(self, snapshot: LandmarkSnapshot) -> None:
         self._landmarks = snapshot
@@ -377,4 +416,5 @@ class CameraPanel(QGroupBox):
         self._check_timer.stop()
         self._collecting = None
         self._status_held = False
+        self._stop_download()
         self._controller.stop()

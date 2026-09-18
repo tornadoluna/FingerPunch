@@ -7,7 +7,6 @@ from PySide6.QtCore import QObject, Signal
 from fingerpunch.camera.devices import CameraDevice
 from fingerpunch.camera.image import frame_to_image
 from fingerpunch.camera.landmarks import LandmarkSnapshot
-from fingerpunch.camera.model import ModelUnavailable
 from fingerpunch.camera.source import Frame
 from fingerpunch.ui import camera_panel
 from fingerpunch.ui.camera_panel import (
@@ -420,7 +419,7 @@ class TestHandTracking:
         assert panel._controllers[0].track_hands is False
 
     def test_enabling_tracking_rebuilds_the_controller_with_it_on(self, panel, monkeypatch):
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/model.task")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
 
         panel.track_checkbox.setChecked(True)
 
@@ -429,26 +428,75 @@ class TestHandTracking:
 
     def test_enabling_tracking_fetches_the_model(self, panel, monkeypatch):
         calls = []
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: calls.append(1) or "/tmp/m")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: calls.append(1) or True)
 
         panel.track_checkbox.setChecked(True)
 
         assert calls == [1]
 
-    def test_a_model_that_cannot_be_fetched_turns_tracking_back_off(self, panel, monkeypatch):
-        def refuse():
-            raise ModelUnavailable("no network")
-
-        monkeypatch.setattr(camera_panel, "ensure_model", refuse)
+    def test_a_cached_model_starts_tracking_without_downloading(self, panel, monkeypatch):
+        started = []
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
+        monkeypatch.setattr(panel, "_start_model_download", lambda: started.append(1))
 
         panel.track_checkbox.setChecked(True)
 
+        assert started == []
+        assert panel.track_hands is True
+
+    def test_a_missing_model_is_downloaded_before_tracking_starts(self, panel, monkeypatch):
+        started = []
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: False)
+        monkeypatch.setattr(panel, "_start_model_download", lambda: started.append(1))
+
+        panel.track_checkbox.setChecked(True)
+
+        assert started == [1]
+        assert panel.track_hands is False
+        assert panel.status.text() == camera_panel.PREPARING_TRACKING_MESSAGE
+
+    def test_download_progress_is_reported(self, panel):
+        panel._on_download_progress(42)
+
+        assert "42%" in panel.status.text()
+
+    def test_a_finished_download_turns_tracking_on(self, panel):
+        panel._on_download_finished()
+
+        assert panel.track_hands is True
+        assert panel.track_checkbox.isEnabled() is True
+
+    def test_a_failed_download_turns_tracking_back_off(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: False)
+        panel.track_checkbox.setChecked(True)
+
+        panel._on_download_failed("no network")
+
         assert panel.track_hands is False
         assert panel.track_checkbox.isChecked() is False
+        assert panel.track_checkbox.isEnabled() is True
         assert panel.status.text() == "no network"
 
+    def test_enabling_tracking_with_the_camera_off_says_what_to_do_next(self, panel, monkeypatch):
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
+
+        panel.track_checkbox.setChecked(True)
+
+        assert panel.track_hands is True
+        assert panel.status.text() == camera_panel.TRACKING_READY_MESSAGE
+
+    def test_disabling_tracking_with_the_camera_off_returns_to_the_off_message(
+        self, panel, monkeypatch
+    ):
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
+        panel.track_checkbox.setChecked(True)
+
+        panel.track_checkbox.setChecked(False)
+
+        assert panel.status.text() == camera_panel.OFF_MESSAGE
+
     def test_disabling_tracking_rebuilds_without_it(self, panel, monkeypatch):
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
         panel.track_checkbox.setChecked(True)
 
         panel.track_checkbox.setChecked(False)
@@ -464,7 +512,7 @@ class TestHandTracking:
         assert panel._landmarks is snapshot
 
     def test_landmarks_are_discarded_when_tracking_is_switched(self, panel, monkeypatch):
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
         panel._landmarks = LandmarkSnapshot(1.0, ())
 
         panel.track_checkbox.setChecked(True)
@@ -482,7 +530,7 @@ class TestHandTracking:
         assert drawn == []
 
     def test_the_overlay_is_drawn_once_tracking_is_on(self, panel, monkeypatch):
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
         drawn = []
         monkeypatch.setattr(camera_panel, "draw_hands", lambda img, snap: drawn.append(1) or img)
         panel.track_checkbox.setChecked(True)
@@ -496,7 +544,7 @@ class TestHandTracking:
 
 class TestPositioningCheck:
     def _ready(self, panel, monkeypatch):
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
         panel.track_checkbox.setChecked(True)
         panel.toggle.setChecked(True)
         return panel._controllers[-1]
@@ -510,7 +558,7 @@ class TestPositioningCheck:
         assert panel.status.text() == camera_panel.CHECK_NEEDS_TRACKING
 
     def test_it_refuses_without_the_camera(self, panel, monkeypatch):
-        monkeypatch.setattr(camera_panel, "ensure_model", lambda: "/tmp/m")
+        monkeypatch.setattr(camera_panel, "is_downloaded", lambda: True)
         panel.track_checkbox.setChecked(True)
 
         panel.check_positioning()

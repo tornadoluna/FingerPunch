@@ -8,6 +8,8 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
+from PySide6.QtCore import QObject, Signal, Slot
+
 from fingerpunch.paths import app_data_dir
 
 logger = logging.getLogger(__name__)
@@ -90,3 +92,22 @@ def _digest(path: Path) -> str:
         for chunk in iter(lambda: source.read(CHUNK_BYTES), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+class ModelDownload(QObject):
+    progress = Signal(int)
+    finished = Signal()
+    failed = Signal(str)
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            ensure_model(on_progress=self._report)
+        except ModelUnavailable as error:
+            self.failed.emit(str(error))
+            return
+        self.finished.emit()
+
+    def _report(self, received: int, total: int) -> None:
+        if total > 0:
+            self.progress.emit(min(100, int(received / total * 100)))

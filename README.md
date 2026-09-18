@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 666 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 672 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -187,7 +187,8 @@ and reused next time, so plugging in a webcam only needs sorting out once.
 
 Tick **Track hands** to draw a live skeleton over the preview. The first time,
 a 7.8 MB hand landmark model is downloaded from Google's model store and cached
-beside the database; after that it is used offline. Tracking runs on the camera
+beside the database; the download runs in the background with progress shown,
+and after that it is used offline. Tracking runs on the camera
 thread, not the interface thread.
 
 **Check Positioning** samples a few seconds of tracking and says what is wrong
@@ -299,7 +300,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 666 automated tests
+- Overall: 99% across 672 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

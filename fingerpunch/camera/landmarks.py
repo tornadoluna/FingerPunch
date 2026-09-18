@@ -71,7 +71,7 @@ def _hand_from_label(label: str) -> Hand | None:
 
 
 def snapshot_from_result(
-    result: Any, timestamp: float, flip_handedness: bool = True
+    result: Any, timestamp: float, flip_handedness: bool = False
 ) -> LandmarkSnapshot:
     hands: list[DetectedHand] = []
     handedness = getattr(result, "handedness", None) or []

@@ -33,17 +33,22 @@ class TestConversion:
         assert len(snapshot.hands[0].points) == LANDMARKS_PER_HAND
         assert snapshot.hands[0].confidence == pytest.approx(0.9)
 
-    def test_handedness_is_flipped_for_an_unmirrored_camera(self):
+    def test_handedness_is_taken_at_face_value(self):
         snapshot = snapshot_from_result(result_for(("Left", 0.9, points())), 0.0)
+
+        assert snapshot.hands[0].hand is Hand.LEFT
+
+    def test_a_right_hand_is_reported_as_right(self):
+        snapshot = snapshot_from_result(result_for(("Right", 0.9, points())), 0.0)
 
         assert snapshot.hands[0].hand is Hand.RIGHT
 
-    def test_handedness_can_be_taken_at_face_value(self):
+    def test_handedness_can_be_flipped_for_a_mirrored_camera(self):
         snapshot = snapshot_from_result(
-            result_for(("Left", 0.9, points())), 0.0, flip_handedness=False
+            result_for(("Left", 0.9, points())), 0.0, flip_handedness=True
         )
 
-        assert snapshot.hands[0].hand is Hand.LEFT
+        assert snapshot.hands[0].hand is Hand.RIGHT
 
     def test_both_hands_are_converted(self):
         snapshot = snapshot_from_result(
@@ -86,7 +91,7 @@ class TestConversion:
     def test_the_label_is_matched_loosely(self, label):
         snapshot = snapshot_from_result(result_for((label, 0.9, points())), 0.0)
 
-        assert snapshot.hands[0].hand is Hand.RIGHT
+        assert snapshot.hands[0].hand is Hand.LEFT
 
 
 class TestFingertips:

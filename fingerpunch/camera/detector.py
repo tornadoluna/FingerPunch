@@ -33,7 +33,7 @@ class MediaPipeDetector:
         self,
         model_file: Path,
         max_hands: int = MAX_HANDS,
-        flip_handedness: bool = True,
+        flip_handedness: bool = False,
     ) -> None:
         mediapipe = load_mediapipe()
         vision = mediapipe.tasks.vision

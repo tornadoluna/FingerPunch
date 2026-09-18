@@ -30,9 +30,12 @@ class CameraDevice(NamedTuple):
     name: str | None = None
 
     @property
+    def title(self) -> str:
+        return self.name or f"Camera {self.index}"
+
+    @property
     def label(self) -> str:
-        who = self.name or f"Camera {self.index}"
-        return f"{who} ({self.width}x{self.height})"
+        return f"{self.title} ({self.width}x{self.height})"
 
 
 def device_name(index: int, sysfs: Path | None = None) -> str | None:

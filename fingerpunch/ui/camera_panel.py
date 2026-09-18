@@ -37,8 +37,8 @@ def _default_controller_factory(
 ) -> CameraController:
     return CameraController(source_factory=lambda: OpenCVCamera(device_index, resolution))
 
-PREVIEW_WIDTH = 320
-PREVIEW_HEIGHT = 180
+PREVIEW_WIDTH = 288
+PREVIEW_HEIGHT = 162
 OFF_MESSAGE = "Camera off"
 STARTING_MESSAGE = "Starting the camera..."
 LIVE_MESSAGE = "Camera live"
@@ -70,62 +70,91 @@ class CameraPanel(QGroupBox):
         self._controller.frame_ready.connect(self._on_frame)
         self._controller.failed.connect(self._on_failed)
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 20, 16, 16)
-        layout.setSpacing(10)
-        layout.addLayout(self._build_controls())
-
         self.preview = QLabel()
         self.preview.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
         self.preview.setAlignment(Qt.AlignCenter)
-        self.preview.setStyleSheet(styles.text_surface_style())
+        self.preview.setStyleSheet(
+            f"QLabel {{ border: 1px solid {styles.BORDER}; border-radius: 10px;"
+            f" background-color: {styles.BG_WINDOW}; }}"
+        )
         self.preview.hide()
-        layout.addWidget(self.preview, alignment=Qt.AlignLeft)
+
+        controls = self._build_controls()
+        controls.addStretch()
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(16, 20, 16, 16)
+        layout.setSpacing(16)
+        layout.addWidget(self.preview, alignment=Qt.AlignTop)
+        layout.addLayout(controls, stretch=1)
 
         self.setLayout(layout)
 
-    def _build_controls(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(12)
+    def _build_controls(self) -> QVBoxLayout:
+        column = QVBoxLayout()
+        column.setSpacing(10)
+
+        top = QHBoxLayout()
+        top.setSpacing(12)
 
         self.toggle = QPushButton("Enable Camera")
         self.toggle.setCheckable(True)
         self.toggle.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
-        self.toggle.setStyleSheet(styles.secondary_button_style(min_width=140))
+        self.toggle.setStyleSheet(styles.secondary_button_style(min_width=150))
         self.toggle.toggled.connect(self._on_toggled)
-        row.addWidget(self.toggle)
+        top.addWidget(self.toggle)
+
+        self.status = QLabel(OFF_MESSAGE)
+        self.status.setFont(styles.ui_font(11))
+        self.status.setStyleSheet(styles.label_style(styles.TEXT_MUTED))
+        self.status.setWordWrap(True)
+        top.addWidget(self.status, stretch=1)
+        column.addLayout(top)
+
+        device_row = QHBoxLayout()
+        device_row.setSpacing(8)
+        device_row.addWidget(self._field_label("Device", width=72))
 
         self.device_combo = QComboBox()
-        self.device_combo.setFont(styles.ui_font(11))
-        self.device_combo.setStyleSheet(styles.combo_box_style(min_width=150))
+        self.device_combo.setFont(styles.ui_font(12))
+        self.device_combo.setStyleSheet(styles.combo_box_style(min_width=180))
         self.device_combo.addItem(f"Camera {self.device_index}", self.device_index)
         self.device_combo.currentIndexChanged.connect(self._on_device_changed)
-        row.addWidget(self.device_combo)
+        device_row.addWidget(self.device_combo, stretch=1)
+
+        self.detect_button = QPushButton("Detect")
+        self.detect_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
+        self.detect_button.setStyleSheet(styles.secondary_button_style(min_width=80))
+        self.detect_button.clicked.connect(self.detect_devices)
+        device_row.addWidget(self.detect_button)
+        column.addLayout(device_row)
+
+        resolution_row = QHBoxLayout()
+        resolution_row.setSpacing(8)
+        resolution_row.addWidget(self._field_label("Resolution", width=72))
 
         self.resolution_combo = QComboBox()
-        self.resolution_combo.setFont(styles.ui_font(11))
-        self.resolution_combo.setStyleSheet(styles.combo_box_style(min_width=120))
+        self.resolution_combo.setFont(styles.ui_font(12))
+        self.resolution_combo.setStyleSheet(styles.combo_box_style(min_width=140))
         for choice in RESOLUTION_CHOICES:
             self.resolution_combo.addItem(f"{choice[0]}x{choice[1]}", choice)
         if self.resolution in RESOLUTION_CHOICES:
             self.resolution_combo.setCurrentIndex(RESOLUTION_CHOICES.index(self.resolution))
         self.resolution_combo.currentIndexChanged.connect(self._on_resolution_changed)
-        row.addWidget(self.resolution_combo)
+        resolution_row.addWidget(self.resolution_combo)
+        resolution_row.addStretch()
+        column.addLayout(resolution_row)
 
-        self.detect_button = QPushButton("Detect")
-        self.detect_button.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
-        self.detect_button.setStyleSheet(styles.secondary_button_style(min_width=80))
-        self.detect_button.clicked.connect(self.detect_devices)
-        row.addWidget(self.detect_button)
+        return column
 
-        self.status = QLabel(OFF_MESSAGE)
-        self.status.setFont(styles.ui_font(11))
-        self.status.setStyleSheet(f"color: {styles.TEXT_MUTED};")
-        self.status.setWordWrap(True)
-        self.status.setMinimumWidth(320)
-        row.addWidget(self.status)
-        row.addStretch()
-        return row
+    @staticmethod
+    def _field_label(text: str, width: int = 0) -> QLabel:
+        label = QLabel(text)
+        label.setFont(styles.ui_font(11))
+        label.setStyleSheet(styles.label_style(styles.TEXT_MUTED))
+        if width:
+            label.setFixedWidth(width)
+        return label
 
     @property
     def is_enabled(self) -> bool:
@@ -141,7 +170,7 @@ class CameraPanel(QGroupBox):
         self.device_combo.blockSignals(True)
         self.device_combo.clear()
         for device in found:
-            self.device_combo.addItem(device.label, device.index)
+            self.device_combo.addItem(device.title, device.index)
         if self.device_index in indices:
             self.device_combo.setCurrentIndex(indices.index(self.device_index))
         else:
@@ -223,7 +252,7 @@ class CameraPanel(QGroupBox):
 
     def _set_status(self, message: str, color: str) -> None:
         self.status.setText(message)
-        self.status.setStyleSheet(f"color: {color};")
+        self.status.setStyleSheet(styles.label_style(color))
 
     def shutdown(self) -> None:
         self._controller.stop()

@@ -43,6 +43,19 @@ def ui_font(size: int, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
     return font
 
 
+def label_style(
+    color: str = TEXT_SECONDARY,
+    size: int | None = None,
+    weight: int | None = None,
+) -> str:
+    rules = [f"color: {color};", "background: transparent;"]
+    if size is not None:
+        rules.append(f"font-size: {size}px;")
+    if weight is not None:
+        rules.append(f"font-weight: {weight};")
+    return "QLabel { " + " ".join(rules) + " }"
+
+
 def panel_style(border_color: str = BORDER, title_color: str = TEXT_SECONDARY) -> str:
     """A subtly-bordered content panel, replacing thick colored-border group boxes."""
     return f"""
@@ -73,6 +86,7 @@ def primary_button_style(min_width: int = 100) -> str:
             border-radius: 8px;
             font-weight: 600;
             min-width: {min_width}px;
+            min-height: 20px;
         }}
         QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}
         QPushButton:pressed {{ background-color: {ACCENT_PRESSED}; }}
@@ -90,6 +104,7 @@ def secondary_button_style(min_width: int = 100) -> str:
             border-radius: 8px;
             font-weight: 600;
             min-width: {min_width}px;
+            min-height: 20px;
         }}
         QPushButton:hover {{ background-color: {BG_SURFACE_HOVER}; border-color: {ACCENT}; }}
         QPushButton:pressed {{ background-color: {BG_SURFACE}; }}
@@ -107,6 +122,7 @@ def danger_button_style(min_width: int = 100) -> str:
             border-radius: 8px;
             font-weight: 600;
             min-width: {min_width}px;
+            min-height: 20px;
         }}
         QPushButton:hover {{ background-color: rgba(239, 68, 68, 0.12); }}
         QPushButton:pressed {{ background-color: rgba(239, 68, 68, 0.20); }}

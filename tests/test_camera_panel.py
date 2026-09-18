@@ -90,7 +90,7 @@ class TestDeviceSelection:
         panel.detect_devices()
 
         labels = [panel.device_combo.itemText(i) for i in range(panel.device_combo.count())]
-        assert labels == ["Camera 0 (640x480)", "Camera 1 (640x480)", "Camera 2 (640x480)"]
+        assert labels == ["Camera 0", "Camera 1", "Camera 2"]
 
     def test_detecting_nothing_reports_it(self, qapp):
         widget = CameraPanel(controller_factory=lambda i, r: FakeController(), probe=list)

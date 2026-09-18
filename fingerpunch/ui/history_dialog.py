@@ -56,14 +56,15 @@ class HistoryDialog(QDialog):
         title = QLabel("Typing History")
         title.setFont(styles.ui_font(18, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet(f"color: {styles.TEXT_PRIMARY}; margin-bottom: 4px;")
+        title.setStyleSheet(styles.label_style(styles.TEXT_PRIMARY))
         layout.addWidget(title)
 
         self.summary_label = QLabel()
         self.summary_label.setFont(styles.ui_font(12))
         self.summary_label.setStyleSheet(
-            f"color: {styles.ACCENT}; padding: 10px; "
-            f"background-color: {styles.BG_SURFACE}; border-radius: 8px;"
+            f"QLabel {{ color: {styles.TEXT_SECONDARY}; padding: 10px;"
+            f" background-color: {styles.BG_SURFACE}; border: 1px solid {styles.BORDER};"
+            f" border-radius: 8px; }}"
         )
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
@@ -362,7 +363,8 @@ class HistoryDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         bests_group = QGroupBox("PERSONAL BESTS")
-        bests_group.setStyleSheet(styles.panel_style(border_color=styles.SUCCESS, title_color=styles.SUCCESS))
+        bests_group.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
+        bests_group.setStyleSheet(styles.panel_style())
         bests_layout = QVBoxLayout()
         bests_layout.setSpacing(10)
         self._build_personal_bests(bests_layout)
@@ -370,7 +372,8 @@ class HistoryDialog(QDialog):
         layout.addWidget(bests_group)
 
         streaks_group = QGroupBox("STREAKS")
-        streaks_group.setStyleSheet(styles.panel_style(border_color=styles.WARNING, title_color=styles.WARNING))
+        streaks_group.setFont(styles.ui_font(11, QFont.Weight.DemiBold))
+        streaks_group.setStyleSheet(styles.panel_style())
         streaks_layout = QVBoxLayout()
         streaks_layout.setSpacing(10)
         self._build_streaks(streaks_layout)
@@ -385,7 +388,7 @@ class HistoryDialog(QDialog):
         if not any(best["date"] for best in bests.values()):
             label = QLabel("No personal bests yet. Complete some sessions to generate personal bests.")
             label.setFont(styles.ui_font(12))
-            label.setStyleSheet(f"color: {styles.TEXT_SECONDARY};")
+            label.setStyleSheet(styles.label_style())
             label.setWordWrap(True)
             layout.addWidget(label)
             return
@@ -408,7 +411,7 @@ class HistoryDialog(QDialog):
 
             name_label = QLabel(f"{display_name}:")
             name_label.setFont(styles.ui_font(12, QFont.Weight.Bold))
-            name_label.setStyleSheet(f"color: {styles.TEXT_PRIMARY};")
+            name_label.setStyleSheet(styles.label_style(styles.TEXT_PRIMARY))
 
             if key in ("best_wpm", "best_accuracy", "best_efficiency"):
                 value_text = f"{data['value']:.1f}"
@@ -417,7 +420,7 @@ class HistoryDialog(QDialog):
 
             value_label = QLabel(value_text)
             value_label.setFont(styles.ui_font(14, QFont.Weight.Bold))
-            value_label.setStyleSheet(f"color: {styles.SUCCESS};")
+            value_label.setStyleSheet(styles.label_style(styles.ACCENT))
 
             date_label = QLabel("")
             if data["date"]:
@@ -425,7 +428,7 @@ class HistoryDialog(QDialog):
                 date_text = date_obj.strftime("%Y-%m-%d %H:%M")
                 date_label = QLabel(f"({date_text})")
                 date_label.setFont(styles.ui_font(10))
-                date_label.setStyleSheet(f"color: {styles.TEXT_MUTED};")
+                date_label.setStyleSheet(styles.label_style(styles.TEXT_MUTED))
 
             grid.addWidget(name_label, row, 0)
             grid.addWidget(value_label, row, 1)
@@ -434,33 +437,33 @@ class HistoryDialog(QDialog):
 
         if improvements and improvements["wpm_improvement"] != 0:
             separator = QLabel("")
-            separator.setStyleSheet(f"border-top: 1px solid {styles.BORDER}; margin: 10px 0;")
+            separator.setStyleSheet(f"border-top: 1px solid {styles.BORDER}; margin: 10px 0; background: transparent;")
             grid.addWidget(separator, row, 0, 1, 3)
             row += 1
 
             improvement_title = QLabel("Improvement Metrics:")
             improvement_title.setFont(styles.ui_font(12, QFont.Weight.Bold))
-            improvement_title.setStyleSheet(f"color: {styles.TEXT_PRIMARY};")
+            improvement_title.setStyleSheet(styles.label_style(styles.TEXT_PRIMARY))
             grid.addWidget(improvement_title, row, 0, 1, 3)
             row += 1
 
             wpm_color = styles.SUCCESS if improvements["wpm_improvement"] > 0 else styles.DANGER
             wpm_imp_label = QLabel(f"WPM Improvement: {improvements['wpm_improvement']:+.1f}")
             wpm_imp_label.setFont(styles.ui_font(11))
-            wpm_imp_label.setStyleSheet(f"color: {wpm_color};")
+            wpm_imp_label.setStyleSheet(styles.label_style(wpm_color))
             grid.addWidget(wpm_imp_label, row, 0, 1, 3)
             row += 1
 
             acc_color = styles.SUCCESS if improvements["accuracy_improvement"] > 0 else styles.DANGER
             acc_imp_label = QLabel(f"Accuracy Improvement: {improvements['accuracy_improvement']:+.1f}%")
             acc_imp_label.setFont(styles.ui_font(11))
-            acc_imp_label.setStyleSheet(f"color: {acc_color};")
+            acc_imp_label.setStyleSheet(styles.label_style(acc_color))
             grid.addWidget(acc_imp_label, row, 0, 1, 3)
             row += 1
 
             consistency_label = QLabel(f"Consistency Score: {improvements['consistency_score']:.1f}/100")
             consistency_label.setFont(styles.ui_font(11))
-            consistency_label.setStyleSheet(f"color: {styles.ACCENT};")
+            consistency_label.setStyleSheet(styles.label_style(styles.TEXT_SECONDARY))
             grid.addWidget(consistency_label, row, 0, 1, 3)
 
         layout.addLayout(grid)
@@ -470,19 +473,19 @@ class HistoryDialog(QDialog):
         if not streak_info:
             label = QLabel("No streaks recorded yet. Complete sessions to build your streak.")
             label.setFont(styles.ui_font(12))
-            label.setStyleSheet(f"color: {styles.TEXT_SECONDARY};")
+            label.setStyleSheet(styles.label_style())
             label.setWordWrap(True)
             layout.addWidget(label)
             return
 
         current_streak_label = QLabel(f"Current Streak: {streak_info['current_streak']} days")
         current_streak_label.setFont(styles.ui_font(15, QFont.Weight.Bold))
-        current_streak_label.setStyleSheet(f"color: {styles.WARNING}; margin-bottom: 8px;")
+        current_streak_label.setStyleSheet(styles.label_style(styles.ACCENT))
         layout.addWidget(current_streak_label)
 
         longest_streak_label = QLabel(f"Longest Streak: {streak_info['longest_streak']} days")
         longest_streak_label.setFont(styles.ui_font(13, QFont.Weight.Bold))
-        longest_streak_label.setStyleSheet(f"color: {styles.TEXT_SECONDARY}; margin-bottom: 16px;")
+        longest_streak_label.setStyleSheet(styles.label_style())
         layout.addWidget(longest_streak_label)
 
         streak_history = self.data_manager.get_streak_history(14)
@@ -498,11 +501,12 @@ class HistoryDialog(QDialog):
             history_browser.setFont(styles.ui_font(12))
             history_browser.setStyleSheet(styles.TEXT_BROWSER_COMPACT_STYLE)
             history_browser.setPlainText(history_text)
-            history_browser.setMaximumHeight(200)
+            lines = history_text.count("\n") + 1
+            history_browser.setFixedHeight(min(200, 34 + lines * 20))
             layout.addWidget(history_browser)
 
         motivation_label = QLabel("Keep practicing daily to build your streak!")
         motivation_label.setFont(styles.ui_font(12))
-        motivation_label.setStyleSheet(f"color: {styles.TEXT_SECONDARY}; margin-top: 16px;")
+        motivation_label.setStyleSheet(styles.label_style(styles.TEXT_MUTED))
         motivation_label.setWordWrap(True)
         layout.addWidget(motivation_label)

@@ -237,6 +237,33 @@ class TestSampleLength:
         assert window.start_time is None
 
 
+class TestVisualConsistency:
+    def test_no_toolbar_button_carries_a_platform_icon(self, window):
+        buttons = [
+            window.start_button,
+            window.reset_button,
+            window.new_text_button,
+            window.history_button,
+        ]
+
+        assert all(button.icon().isNull() for button in buttons)
+
+    def test_button_labels_are_not_clipped(self, qapp, window):
+        window.show()
+        qapp.processEvents()
+
+        for button in (window.start_button, window.reset_button,
+                       window.new_text_button, window.history_button):
+            needed = button.fontMetrics().boundingRect(button.text())
+            assert button.width() >= needed.width(), button.text()
+            assert button.height() >= needed.height(), button.text()
+
+    def test_only_the_primary_action_is_filled(self, window):
+        assert "background-color" in window.start_button.styleSheet()
+        for button in (window.reset_button, window.new_text_button, window.history_button):
+            assert "background-color: transparent" in button.styleSheet(), button.text()
+
+
 class TestWindowSizing:
     def test_the_window_is_tall_enough_for_its_contents(self, window):
         window.show()

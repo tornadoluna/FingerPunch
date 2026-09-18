@@ -39,7 +39,7 @@ As someone who developed the inefficient habit of "fingerpunching" - typing with
 - Reset Functionality: "Try Again" and "New Text" options
 - Text Customization: Adjustable word count (10-500 words)
 - Professional UI: Modern, responsive design with dynamic resizing
-- Automated Testing: 553 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
+- Automated Testing: 558 pytest tests with 99% coverage, enforced in CI (see Testing & Quality below)
 - Data Persistence: SQLite database for session history and progress tracking
 - History Viewer: View past sessions with detailed statistics and trends
 - Performance Charts: Visual graphs showing WPM and accuracy progress over time
@@ -276,7 +276,7 @@ FingerPunch/
 - fingerpunch/ui/styles.py: 98%
 - fingerpunch/__main__.py: 96%
 - fingerpunch/text_generator.py: 95%
-- Overall: 99% across 553 automated tests
+- Overall: 99% across 558 automated tests
 
 CI fails if overall coverage drops below 90%. Qt tests run against a real
 widget on the offscreen platform rather than against mocks, so they exercise

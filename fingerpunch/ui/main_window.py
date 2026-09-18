@@ -8,7 +8,6 @@ from PySide6.QtGui import (
     QCloseEvent,
     QColor,
     QFont,
-    QIcon,
     QTextCharFormat,
     QTextCursor,
 )
@@ -21,7 +20,6 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSizePolicy,
-    QStyle,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -120,12 +118,12 @@ class TypingPracticeApp(QWidget):
         self.text_label.setFont(styles.ui_font(16))
         self.text_label.setStyleSheet(styles.text_surface_style())
         self.text_label.setReadOnly(True)
-        self.text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.text_label.setMinimumHeight(190)
+        self.text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.text_label)
         layout.addWidget(self.progress_bar)
 
         group.setLayout(layout)
-        group.setMinimumHeight(200)
         return group
 
     def _build_input_group(self) -> QGroupBox:
@@ -168,7 +166,7 @@ class TypingPracticeApp(QWidget):
 
         label = QLabel("Sample Text Length:")
         label.setFont(styles.ui_font(12))
-        label.setStyleSheet(styles.LABEL_CHIP_STYLE)
+        label.setStyleSheet(styles.label_style(styles.TEXT_SECONDARY))
         row.addWidget(label)
 
         self.word_count_combo = QComboBox()
@@ -191,28 +189,24 @@ class TypingPracticeApp(QWidget):
 
         self.start_button = QPushButton("Start")
         self.start_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
-        self.start_button.setIcon(QIcon(self.style().standardIcon(QStyle.SP_MediaPlay)))
         self.start_button.setStyleSheet(styles.primary_button_style())
         self.start_button.clicked.connect(self.start_practice)
         row.addWidget(self.start_button)
 
         self.reset_button = QPushButton("Reset")
         self.reset_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
-        self.reset_button.setIcon(QIcon(self.style().standardIcon(QStyle.SP_BrowserReload)))
-        self.reset_button.setStyleSheet(styles.danger_button_style())
+        self.reset_button.setStyleSheet(styles.secondary_button_style())
         self.reset_button.clicked.connect(self.reset_practice)
         row.addWidget(self.reset_button)
 
         self.new_text_button = QPushButton("New Text")
         self.new_text_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
-        self.new_text_button.setIcon(QIcon(self.style().standardIcon(QStyle.SP_FileDialogNewFolder)))
         self.new_text_button.setStyleSheet(styles.secondary_button_style())
         self.new_text_button.clicked.connect(self.load_new_sample_text)
         row.addWidget(self.new_text_button)
 
         self.history_button = QPushButton("View History")
         self.history_button.setFont(styles.ui_font(12, QFont.Weight.DemiBold))
-        self.history_button.setIcon(QIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView)))
         self.history_button.setStyleSheet(styles.secondary_button_style(min_width=120))
         self.history_button.clicked.connect(self.show_history_dialog)
         row.addWidget(self.history_button)
